@@ -34,7 +34,7 @@ def get_subject_db(collection_name):
         collection_name=collection_name
     )
 
-# 웹 브라우저 TTS 기반 음성 출력 함수 (자동 재생용)
+# 웹 브라우저 TTS 기반 음성 출력 함수
 def speak_js(text_to_speak=""):
     if not text_to_speak:
         return
@@ -112,12 +112,12 @@ with col1:
             st.session_state["user_answer_key"] = ""
             
         try:
-            with st.spinner(f"⚡ [{selected_display_name}] 전용 DB에서 문제를 추출 중입니다..."):
+            with st.spinner(f"⚡ [{selected_display_name}] 전용 DB에서 문제를 가져오는 중..."):
                 subject_db = get_subject_db(target_collection)
-                past_docs = subject_db.similarity_search("설치기준 구조 준수사항 규정 조항", k=3)
+                past_docs = subject_db.similarity_search("설치기준 구조 준수사항 규정 조항", k=1)
                 
                 if past_docs:
-                    chosen_doc = random.choice(past_docs).page_content
+                    chosen_doc = past_docs[0].page_content
                 else:
                     chosen_doc = selected_display_name
 
@@ -125,15 +125,16 @@ with col1:
                 당신은 산업안전지도사 수석 면접관입니다.
 
                 [선택 과목 문서 내용]:
-                {chosen_doc[:700]}
+                {chosen_doc[:600]}
 
                 [출제 규칙]:
-                1. 오직 위 [선택 과목 문서 내용] 안에 명시된 세부 기술 기준 및 조항에 근거해서만 질문을 생성하세요.
-                2. 구술 면접 질문 어조(~에 대해 설명하시오, ~의 기준을 말하시오 등)로 오직 질문 1개(1~2문장)만 출력하세요.
+                1. 위 [선택 과목 문서 내용]에 명시된 세부 기술 기준 및 조항에 근거해서만 질문을 생성하세요.
+                2. 구술 면접 질문 어조(~에 대해 설명하시오, ~의 기준을 말하시오 등)로 질문 1개만 출력하세요.
                 """
 
+                # 경량화 모델 사용으로 초고속 생성
                 response = client.chat.completions.create(
-                    model="meta/llama-3.1-70b-instruct",
+                    model="meta/llama-3.1-8b-instruct",
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.1,
                     max_tokens=100
@@ -160,31 +161,35 @@ if st.button("📝 답안 제출 및 채점받기", type="primary", use_containe
         st.warning("답변을 입력해 주세요.")
     else:
         try:
-            with st.spinner("⚡ 선택 과목 전용 DB 기준 채점 진행 중..."):
+            with st.spinner("⚡ 출처 조항 검색 및 초고속 정밀 채점 진행 중..."):
                 subject_db = get_subject_db(target_collection)
-                docs = subject_db.similarity_search(user_answer_input, k=2)
-                ref_text = "\n".join([d.page_content for d in docs]) if docs else ""
+                # k=1 검색 최적화
+                docs = subject_db.similarity_search(st.session_state.question, k=1)
+                ref_text = docs[0].page_content if docs else ""
 
                 eval_prompt = f"""
                 당신은 산업안전지도사 수석 면접관입니다.
 
+                [과목명]: {selected_display_name}
                 [질문]: {st.session_state.question}
                 [답변]: {user_answer_input}
-                [과목 기준 지문]:
-                {ref_text[:500]}
+                [과목 기준 원문 데이터]:
+                {ref_text[:700]}
 
-                [출력 양식]:
-                1. 결과: (합격/불합격/보완필요)
-                2. 점수: (100점 만점)
-                3. 핵심 피드백: (조항 및 수치 기준 지적)
-                4. 모범 답안: (관련 조항 근거 명시하여 작성)
+                [출력 양식 - 반드시 정확한 조항 근거 명시]:
+                1. 출처 근거: (예: [산업안전보건기준에 관한 규칙 제00조] 또는 [00공사 표준안전 작업지침 제0조])
+                2. 결과: (합격/불합격/보완필요)
+                3. 점수: (0~100점)
+                4. 핵심 피드백: (수치 및 핵심 키워드 감점/득점 사유 1문장)
+                5. 모범 답안: (원문 데이터의 법령/지침 조항 내용 및 수치, 단어를 변형하지 말고 그대로 완전하게 기술)
                 """
 
+                # 8B 경량화 모델 적용으로 채점 시간 극대화 단축
                 eval_response = client.chat.completions.create(
-                    model="meta/llama-3.1-70b-instruct",
+                    model="meta/llama-3.1-8b-instruct",
                     messages=[{"role": "user", "content": eval_prompt}],
-                    temperature=0.1,
-                    max_tokens=300
+                    temperature=0.0,
+                    max_tokens=350
                 )
                 st.session_state.feedback = eval_response.choices[0].message.content
                 st.rerun()
@@ -196,8 +201,6 @@ if st.session_state.feedback:
     st.subheader("📊 채점 결과")
     st.markdown(st.session_state.feedback)
     
-    # 채점 결과를 음성으로 들어볼 수 있는 버튼 추가
     if st.button("🔊 채점 결과 음성으로 듣기", use_container_width=True):
-        # 마크다운 기호 제거 후 순수 텍스트 추출
         clean_feedback = st.session_state.feedback.replace("*", "").replace("#", "").replace("-", "")
         speak_js(clean_feedback)
