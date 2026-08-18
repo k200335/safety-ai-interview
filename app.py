@@ -112,32 +112,33 @@ with col1:
             st.session_state["user_answer_key"] = ""
             
         try:
-            with st.spinner(f"⚡ [{selected_display_name}] 전용 DB에서 문제를 가져오는 중..."):
+            with st.spinner(f"⚡ [{selected_display_name}] 전용 DB 지문 추출 중..."):
                 subject_db = get_subject_db(target_collection)
-                past_docs = subject_db.similarity_search("설치기준 구조 준수사항 규정 조항", k=1)
+                past_docs = subject_db.similarity_search("설치기준 구조 준수사항 규정 조항", k=3)
                 
                 if past_docs:
-                    chosen_doc = past_docs[0].page_content
+                    chosen_doc = random.choice(past_docs).page_content
                 else:
                     chosen_doc = selected_display_name
 
                 prompt = f"""
                 당신은 산업안전지도사 수석 면접관입니다.
 
-                [선택 과목 문서 내용]:
-                {chosen_doc[:600]}
+                [선택 과목명]: {selected_display_name}
+                [선택 과목 DB 원문 텍스트]:
+                {chosen_doc[:800]}
 
-                [출제 규칙]:
-                1. 위 [선택 과목 문서 내용]에 명시된 세부 기술 기준 및 조항에 근거해서만 질문을 생성하세요.
-                2. 구술 면접 질문 어조(~에 대해 설명하시오, ~의 기준을 말하시오 등)로 질문 1개만 출력하세요.
+                [엄격 출제 규칙]:
+                1. 반드시 위 [선택 과목 DB 원문 텍스트] 안에 직접적으로 적혀있는 내용으로만 질문을 만드세요.
+                2. 당신의 사전 지식이나 다른 법령의 내용을 절대로 가져오지 마세요.
+                3. 질문 어조(~에 대해 설명하시오, ~의 기준을 말하시오 등)로 오직 질문 1개만 출력하세요.
                 """
 
-                # 경량화 모델 사용으로 초고속 생성
                 response = client.chat.completions.create(
-                    model="meta/llama-3.1-8b-instruct",
+                    model="meta/llama-3.1-70b-instruct",
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.1,
-                    max_tokens=100
+                    temperature=0.0,
+                    max_tokens=120
                 )
                 st.session_state.question = response.choices[0].message.content
                 st.rerun()
@@ -161,35 +162,38 @@ if st.button("📝 답안 제출 및 채점받기", type="primary", use_containe
         st.warning("답변을 입력해 주세요.")
     else:
         try:
-            with st.spinner("⚡ 출처 조항 검색 및 초고속 정밀 채점 진행 중..."):
+            with st.spinner("⚡ DB 지문 원문 대조 채점 중..."):
                 subject_db = get_subject_db(target_collection)
-                # k=1 검색 최적화
-                docs = subject_db.similarity_search(st.session_state.question, k=1)
-                ref_text = docs[0].page_content if docs else ""
+                docs = subject_db.similarity_search(st.session_state.question, k=2)
+                ref_text = "\n\n".join([d.page_content for d in docs]) if docs else ""
 
                 eval_prompt = f"""
-                당신은 산업안전지도사 수석 면접관입니다.
+                당신은 오직 제공된 [DB 근거 원문]만 보고 채점하는 엄격한 면접관입니다.
 
-                [과목명]: {selected_display_name}
+                [선택 과목명]: {selected_display_name}
                 [질문]: {st.session_state.question}
-                [답변]: {user_answer_input}
-                [과목 기준 원문 데이터]:
-                {ref_text[:700]}
+                [사용자 답변]: {user_answer_input}
+                [DB 근거 원문]:
+                {ref_text[:1000]}
 
-                [출력 양식 - 반드시 정확한 조항 근거 명시]:
-                1. 출처 근거: (예: [산업안전보건기준에 관한 규칙 제00조] 또는 [00공사 표준안전 작업지침 제0조])
+                [절대 규칙]:
+                1. '출처 근거' 및 '모범 답안'은 반드시 위 [DB 근거 원문] 텍스트 안에 존재하는 내용 그대로만 작성하세요.
+                2. [DB 근거 원문]에 적혀있지 않은 조항 번호(예: 제4조 등)나 수치를 외부 지식으로 지어내면 절대 안 됩니다.
+                3. 원문에 조항 번호가 명시되어 있지 않다면 조항 번호를 지어내지 말고 [DB 근거 원문]의 첫 문장이나 제목을 출처로 표기하세요.
+
+                [출력 양식]:
+                1. 출처 근거: (DB 근거 원문에 직접 표기된 조항/제목 그대로 작성)
                 2. 결과: (합격/불합격/보완필요)
                 3. 점수: (0~100점)
-                4. 핵심 피드백: (수치 및 핵심 키워드 감점/득점 사유 1문장)
-                5. 모범 답안: (원문 데이터의 법령/지침 조항 내용 및 수치, 단어를 변형하지 말고 그대로 완전하게 기술)
+                4. 핵심 피드백: (원문 대비 답변의 정확성 평가 1~2문장)
+                5. 모범 답안: (DB 근거 원문의 관련 문장을 변형 없이 그대로 기술)
                 """
 
-                # 8B 경량화 모델 적용으로 채점 시간 극대화 단축
                 eval_response = client.chat.completions.create(
-                    model="meta/llama-3.1-8b-instruct",
+                    model="meta/llama-3.1-70b-instruct",
                     messages=[{"role": "user", "content": eval_prompt}],
                     temperature=0.0,
-                    max_tokens=350
+                    max_tokens=450
                 )
                 st.session_state.feedback = eval_response.choices[0].message.content
                 st.rerun()
