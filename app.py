@@ -34,7 +34,7 @@ def get_subject_db(collection_name):
         collection_name=collection_name
     )
 
-# 음성 출력 함수
+# 웹 브라우저 TTS 기반 음성 출력 함수 (자동 재생용)
 def speak_js(text_to_speak=""):
     if not text_to_speak:
         return
@@ -73,6 +73,7 @@ def speak_js(text_to_speak=""):
     """
     components.html(js_code, height=0)
 
+# 세션 상태 초기화
 if "question" not in st.session_state:
     st.session_state.question = ""
 if "feedback" not in st.session_state:
@@ -112,10 +113,7 @@ with col1:
             
         try:
             with st.spinner(f"⚡ [{selected_display_name}] 전용 DB에서 문제를 추출 중입니다..."):
-                # 선택한 과목의 '독립 DB' 전용 객체 연결
                 subject_db = get_subject_db(target_collection)
-                
-                # 오직 이 과목 DB 내부 문단만 가져옴
                 past_docs = subject_db.similarity_search("설치기준 구조 준수사항 규정 조항", k=3)
                 
                 if past_docs:
@@ -197,3 +195,9 @@ if st.session_state.feedback:
     st.divider()
     st.subheader("📊 채점 결과")
     st.markdown(st.session_state.feedback)
+    
+    # 채점 결과를 음성으로 들어볼 수 있는 버튼 추가
+    if st.button("🔊 채점 결과 음성으로 듣기", use_container_width=True):
+        # 마크다운 기호 제거 후 순수 텍스트 추출
+        clean_feedback = st.session_state.feedback.replace("*", "").replace("#", "").replace("-", "")
+        speak_js(clean_feedback)
