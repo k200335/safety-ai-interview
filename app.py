@@ -19,7 +19,7 @@ client = OpenAI(
     api_key=NVIDIA_API_KEY
 )
 
-# 2. Vector DB 로드 (캐싱 적용)
+# 2. Vector DB 로드
 @st.cache_resource
 def load_db():
     embedding_function = SentenceTransformerEmbeddings(model_name="jhgan/ko-sroberta-multitask")
@@ -101,47 +101,44 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("🎲 새로운 문제 내기", use_container_width=True):
         st.session_state.feedback = ""
-        # 새 문제 클릭 시 답안 입력창 자동 초기화
         if "user_answer_key" in st.session_state:
             st.session_state["user_answer_key"] = ""
             
         try:
-            with st.spinner("⚡ 선택한 과목의 기출문제를 분석하여 출제 중입니다..."):
-                # 선택된 과목명 정제 (숫자 서식 제거)
+            with st.spinner("⚡ 세부 조항 및 기출 패턴을 분석하여 출제 중입니다..."):
                 subject_clean = selected_subject.split(". ")[-1] if ". " in selected_subject else selected_subject
                 
                 if selected_subject == "🎲 전체 (무작위 기출 추출)":
-                    search_query = "산업안전지도사 2차 3차 면접 기출문제"
+                    search_query = "산업안전지도사 2차 3차 면접 기출문제 조항"
                 else:
-                    search_query = f"{subject_clean} 기출문제 2차 3차 구술"
+                    # 세부 조항 타겟팅 키워드 강화
+                    search_query = f"{subject_clean} 구조 설치기준 준수사항 안전조치 조항"
                 
-                # DB에서 선택 과목 관련 지문 상위 3개 추출 후 무작위 선택
-                past_docs = vector_db.similarity_search(search_query, k=3)
+                past_docs = vector_db.similarity_search(search_query, k=4)
                 
                 if past_docs:
                     chosen_doc = random.choice(past_docs).page_content
                 else:
                     chosen_doc = subject_clean
 
-                # 선택 범위 엄격 제한 프롬프트
                 prompt = f"""
                 당신은 산업안전지도사 2차/3차 면접 수석 출제위원입니다.
 
                 [선택된 과목]: {subject_clean}
-                [검색된 기출/지침 지문]:
-                {chosen_doc[:600]}
+                [검색된 지침/조항 내용]:
+                {chosen_doc[:700]}
 
-                [엄격 출제 지침]:
-                1. 반드시 위에 제시된 [{subject_clean}] 지문 범위 내에 존재하는 내용으로만 질문을 만드세요. 선택된 범위 외의 타 과목/지침 내용은 절대 섞지 마세요.
-                2. 위 지문에서 실제 출제되었던 기출문제를 그대로 복원하거나, 해당 지침 조항에 근거한 동일한 유형/형태의 유사 문제를 1개만 만드세요.
-                3. 질문 어조는 실제 구술 면접 말투(~에 대해 설명하시오, ~의 기준 3가지를 말하시오 등)를 엄격히 준수하세요.
-                4. 서론, 인사말, 문항 번호 없이 오직 단도직입적인 질문(1~2문장 이내)만 출력하세요.
+                [엄격 출제 규칙]:
+                1. '보호구 착용', '일반 안전교육' 같은 범용적이고 일반적인 질문은 절대 출제하지 마세요.
+                2. 반드시 [{subject_clean}]의 세부 조항에 명시된 구체적인 '설치 기준', '구조', '간격', '치수', '재료 기준', '작업시 준수사항'에서만 출제하세요.
+                3. 실제 시험 기출 스타일(~의 설치기준 3가지를 설명하시오, ~의 유의사항을 말하시오 등)로 단도직입적인 구술 질문 1개만 작성하세요.
+                4. 서론, 인사말, 문항 번호 없이 오직 면접 질문 문장(1~2문장)만 출력하세요.
                 """
 
                 response = client.chat.completions.create(
                     model="meta/llama-3.1-70b-instruct",
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.2, # 픽션 방지 및 엄격한 범위 준수
+                    temperature=0.2,
                     max_tokens=100
                 )
                 st.session_state.question = response.choices[0].message.content
