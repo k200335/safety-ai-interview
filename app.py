@@ -81,7 +81,7 @@ if "feedback" not in st.session_state:
 if "raw_doc" not in st.session_state:
     st.session_state.raw_doc = ""
 
-# 12개 과목 매핑
+# 12개 과목 매핑 (화면 표시명 : DB 컬렉션 명)
 SUBJECT_MAP = {
     "1. 산업안전보건법": "sub_1",
     "2. 산업안전보건기준에 관한 규칙": "sub_2",
@@ -97,6 +97,7 @@ SUBJECT_MAP = {
     "12. 기출문제 (11회~16회 전체)": "sub_12"
 }
 
+# 지도사 실전 기출 패턴 기반 검색 쿼리
 EXAM_PATTERNS = [
     "각 호 준수사항 설치기준 제1호 제2호 제3호",
     "작업계획서 포함사항 작성 내용 규정",
@@ -115,44 +116,32 @@ target_collection = SUBJECT_MAP[selected_display_name]
 
 col_btn1, col_btn2 = st.columns(2)
 
+# 1. ⚡ 0.1초 즉시 문제 생성 (LLM 생략)
 with col_btn1:
-    if st.button("🎲 새로운 문제 내기", use_container_width=True):
+    if st.button("🎲 새로운 문제 내기 (즉시 생성)", use_container_width=True):
         st.session_state.feedback = ""
         st.session_state.raw_doc = ""
         if "user_answer_key" in st.session_state:
             st.session_state["user_answer_key"] = ""
             
         try:
-            with st.spinner(f"⚡ [{selected_display_name}] 문제 생성 중..."):
-                subject_db = get_subject_db(target_collection)
-                pattern_query = random.choice(EXAM_PATTERNS)
-                past_docs = subject_db.similarity_search(pattern_query, k=10)
-                
-                itemized_docs = [d.page_content for d in past_docs if any(char in d.page_content for char in ["1.", "2.", "①", "②", "가.", "나.", "1호"])]
-                
-                chosen_text = random.choice(itemized_docs) if itemized_docs else (past_docs[0].page_content if past_docs else selected_display_name)
-                st.session_state.raw_doc = chosen_text  # 원본 텍스트 미리 세션 저장
+            subject_db = get_subject_db(target_collection)
+            pattern_query = random.choice(EXAM_PATTERNS)
+            past_docs = subject_db.similarity_search(pattern_query, k=15)
+            
+            # 항목(1,2,3... 또는 가,나,다...)이 나열된 문단 우선 선택
+            itemized_docs = [d.page_content for d in past_docs if any(char in d.page_content for char in ["1.", "2.", "①", "②", "가.", "나.", "1호"])]
+            chosen_text = random.choice(itemized_docs) if itemized_docs else (past_docs[0].page_content if past_docs else selected_display_name)
+            
+            st.session_state.raw_doc = chosen_text  # 원문 저장
 
-                prompt = f"""
-                당신은 산업안전지도사 수석 출제위원입니다.
-                [선택 과목명]: {selected_display_name}
-                [선택 과목 DB 원문 텍스트]: {chosen_text[:1000]}
+            # DB 원문에서 첫 번째 유효 줄(조항/제목) 추출하여 질문 조합
+            lines = [l.strip() for l in chosen_text.split('\n') if l.strip()]
+            header_title = lines[0] if lines else selected_display_name
 
-                [출제 규칙]:
-                1. 단답형/퀴즈형 질문 금지.
-                2. 양식: "[법령/지침명]에 따른 [대상]의 [설치기준/준수사항/안전조치] N가지를 설명하시오."
-                3. 오직 질문 1문장만 출력.
-                """
+            st.session_state.question = f"[{selected_display_name}] {header_title[:45]}과(와) 관련하여, 관련 법령 및 지침에 따른 세부 설치기준 또는 준수사항을 설명하시오."
+            st.rerun()
 
-                # 최신 고속 3.3 70B 모델 적용
-                response = client.chat.completions.create(
-                    model="meta/llama-3.3-70b-instruct",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.0,
-                    max_tokens=100
-                )
-                st.session_state.question = response.choices[0].message.content
-                st.rerun()
         except Exception as err:
             st.error(f"오류가 발생했습니다: {err}")
 
@@ -164,11 +153,11 @@ if st.session_state.question:
 st.divider()
 
 st.subheader("🎤 나의 답안 입력")
-user_answer_input = st.text_area("답변을 입력하세요 (모르는 경우 아래 '정답 확인' 클릭):", key="user_answer_key", height=120)
+user_answer_input = st.text_area("답변을 입력하세요 (모르는 경우 아래 '정답 확인' 클릭):", key="user_answer_key", height=130)
 
 col_act1, col_act2 = st.columns(2)
 
-# 1. 답안 제출 및 초고속 채점
+# 2. 초고속 정밀 채점 (3~5초 소요)
 with col_act1:
     if st.button("📝 답안 제출 및 채점받기", type="primary", use_container_width=True):
         if not st.session_state.question:
@@ -177,36 +166,43 @@ with col_act1:
             st.warning("답변을 입력해 주세요.")
         else:
             try:
-                with st.spinner("⚡ 3초 정밀 채점 진행 중..."):
+                with st.spinner("⚡ DB 원문 대조 및 실전 채점 진행 중..."):
                     ref_text = st.session_state.raw_doc if st.session_state.raw_doc else ""
 
                     eval_prompt = f"""
-                    당신은 산업안전지도사 면접관입니다.
-                    [과목]: {selected_display_name}
-                    [질문]: {st.session_state.question}
-                    [답변]: {user_answer_input}
-                    [DB 원문]: {ref_text[:1000]}
+                    당신은 오직 제공된 [DB 근거 원문]만 보고 채점하는 엄격한 산업안전지도사 면접관입니다.
 
-                    [양식]:
-                    1. 출처 근거: (원문에 표기된 조항/제목)
+                    [선택 과목명]: {selected_display_name}
+                    [질문]: {st.session_state.question}
+                    [사용자 답변]: {user_answer_input}
+                    [DB 근거 원문]:
+                    {ref_text[:1200]}
+
+                    [절대 채점 규칙]:
+                    1. 지도사 시험은 원문의 법령 수치, 단어, 항목을 정확히 작성했는지가 핵심입니다.
+                    2. '출처 근거' 및 '모범 답안'은 반드시 위 [DB 근거 원문] 텍스트에 표기된 법령/지침 명칭, 제0조 조항 번호, 각 호 항목을 100% 원문 그대로 기술하세요.
+                    3. DB 원문에 없는 조항 번호나 수치를 외부 지식으로 지어내면 절대 안 됩니다.
+
+                    [출력 양식]:
+                    1. 출처 근거: (DB 근거 원문에 직접 표기된 법령/지침 명칭 및 제0조 조항 그대로 작성)
                     2. 결과: (합격/불합격/보완필요)
                     3. 점수: (0~100점)
-                    4. 핵심 피드백: (수치/키워드 감점 사유 1문장)
-                    5. 모범 답안: (원문 수치 및 문장 100% 그대로 기술)
+                    4. 핵심 피드백: (수치 오답, 항목 누락 등 감점 사유 1~2문장)
+                    5. 모범 답안: (DB 근거 원문의 해당 조항 내용 및 각 호 항목을 토시 하나 바꾸지 말고 원문 그대로 100% 기술)
                     """
 
                     eval_response = client.chat.completions.create(
                         model="meta/llama-3.3-70b-instruct",
                         messages=[{"role": "user", "content": eval_prompt}],
                         temperature=0.0,
-                        max_tokens=400
+                        max_tokens=500
                     )
                     st.session_state.feedback = eval_response.choices[0].message.content
                     st.rerun()
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 2. ⚡ 0.1초 즉시 정답 확인 (LLM을 거치지 않아 지연시간 0초!)
+# 3. ⚡ 0.1초 즉시 정답 확인 (LLM을 거치지 않아 지연시간 0초!)
 with col_act2:
     if st.button("💡 정답 및 해설 바로 확인 (0초)", use_container_width=True):
         if not st.session_state.question:
@@ -214,22 +210,10 @@ with col_act2:
         else:
             ref_text = st.session_state.raw_doc if st.session_state.raw_doc else "원문 지문을 불러올 수 없습니다."
             st.session_state.feedback = f"""
-            ### 📖 DB 법령/지침 원문 모범 답안 (즉시 출력)
-            
-            **[출처 과목]:** {selected_display_name}
-            
-            **[원문 기준 조항 및 내용]:**
-            ```
-            {ref_text}
-            ```
-            """
-            st.rerun()
+### 📖 DB 법령/지침 원문 모범 답안 (즉시 출력)
 
-if st.session_state.feedback:
-    st.divider()
-    st.subheader("📊 채점 결과 / 모범 답안")
-    st.markdown(st.session_state.feedback)
-    
-    if st.button("🔊 결과/답안 음성으로 듣기", use_container_width=True):
-        clean_feedback = st.session_state.feedback.replace("*", "").replace("#", "").replace("-", "").replace("`", "")
-        speak_js(clean_feedback)
+**[출처 과목]:** {selected_display_name}
+
+**[DB 원문 기준 조항 및 세부 내용]:**
+```text
+{ref_text}
