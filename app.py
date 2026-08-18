@@ -38,7 +38,7 @@ def get_subject_db(collection_name):
 def speak_js(text_to_speak=""):
     if not text_to_speak:
         return
-    clean_text = text_to_speak.replace('"', "'").replace('\n', ' ')
+    clean_text = text_to_speak.replace('"', "'").replace('\n', ' ').replace('`', '')
     js_code = f"""
     <script>
     function playNaturalVoice(text) {{
@@ -97,7 +97,6 @@ SUBJECT_MAP = {
     "12. 기출문제 (11회~16회 전체)": "sub_12"
 }
 
-# 지도사 실전 기출 패턴 기반 검색 쿼리
 EXAM_PATTERNS = [
     "각 호 준수사항 설치기준 제1호 제2호 제3호",
     "작업계획서 포함사항 작성 내용 규정",
@@ -116,7 +115,7 @@ target_collection = SUBJECT_MAP[selected_display_name]
 
 col_btn1, col_btn2 = st.columns(2)
 
-# 1. ⚡ 0.1초 즉시 문제 생성 (LLM 생략)
+# 1. ⚡ 0.1초 즉시 문제 생성
 with col_btn1:
     if st.button("🎲 새로운 문제 내기 (즉시 생성)", use_container_width=True):
         st.session_state.feedback = ""
@@ -129,21 +128,22 @@ with col_btn1:
             pattern_query = random.choice(EXAM_PATTERNS)
             past_docs = subject_db.similarity_search(pattern_query, k=15)
             
-            # 항목(1,2,3... 또는 가,나,다...)이 나열된 문단 우선 선택
-            itemized_docs = [d.page_content for d in past_docs if any(char in d.page_content for char in ["1.", "2.", "①", "②", "가.", "나.", "1호"])]
-            chosen_text = random.choice(itemized_docs) if itemized_docs else (past_docs[0].page_content if past_docs else selected_display_name)
-            
-            st.session_state.raw_doc = chosen_text  # 원문 저장
+            if past_docs:
+                itemized_docs = [d.page_content for d in past_docs if any(char in d.page_content for char in ["1.", "2.", "①", "②", "가.", "나.", "1호"])]
+                chosen_text = random.choice(itemized_docs) if itemized_docs else past_docs[0].page_content
+            else:
+                chosen_text = f"[{selected_display_name}] 세부 지침 문단을 불러오지 못했습니다."
 
-            # DB 원문에서 첫 번째 유효 줄(조항/제목) 추출하여 질문 조합
-            lines = [l.strip() for l in chosen_text.split('\n') if l.strip()]
+            st.session_state.raw_doc = chosen_text
+
+            lines = [l.strip() for l in chosen_text.split('\n') if len(l.strip()) > 5]
             header_title = lines[0] if lines else selected_display_name
 
-            st.session_state.question = f"[{selected_display_name}] {header_title[:45]}과(와) 관련하여, 관련 법령 및 지침에 따른 세부 설치기준 또는 준수사항을 설명하시오."
+            st.session_state.question = f"[{selected_display_name}] {header_title[:40]}과(와) 관련하여, 관련 법령 및 지침에 따른 세부 설치기준 또는 준수사항을 설명하시오."
             st.rerun()
 
         except Exception as err:
-            st.error(f"오류가 발생했습니다: {err}")
+            st.error(f"문제 생성 중 오류가 발생했습니다: {err}")
 
 if st.session_state.question:
     st.subheader("📋 면접 질문")
@@ -157,7 +157,7 @@ user_answer_input = st.text_area("답변을 입력하세요 (모르는 경우 �
 
 col_act1, col_act2 = st.columns(2)
 
-# 2. 초고속 정밀 채점 (3~5초 소요)
+# 2. 초고속 정밀 채점
 with col_act1:
     if st.button("📝 답안 제출 및 채점받기", type="primary", use_container_width=True):
         if not st.session_state.question:
@@ -192,7 +192,7 @@ with col_act1:
                     """
 
                     eval_response = client.chat.completions.create(
-                        model="meta/llama-3.3-70b-instruct",
+                        model="meta/llama-3.1-70b-instruct",
                         messages=[{"role": "user", "content": eval_prompt}],
                         temperature=0.0,
                         max_tokens=500
@@ -202,18 +202,21 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 3. ⚡ 0.1초 즉시 정답 확인 (LLM을 거치지 않아 지연시간 0초!)
+# 3. ⚡ 0.1초 즉시 정답 확인 (대기시간 0초)
 with col_act2:
     if st.button("💡 정답 및 해설 바로 확인 (0초)", use_container_width=True):
         if not st.session_state.question:
             st.warning("먼저 '새로운 문제 내기' 버튼을 눌러주세요.")
         else:
             ref_text = st.session_state.raw_doc if st.session_state.raw_doc else "원문 지문을 불러올 수 없습니다."
-            st.session_state.feedback = f"""
-### 📖 DB 법령/지침 원문 모범 답안 (즉시 출력)
+            st.session_state.feedback = f"### 📖 DB 법령/지침 원문 모범 답안 (즉시 출력)\n\n**[출처 과목]:** {selected_display_name}\n\n**[DB 원문 기준 조항 및 세부 내용]:**\n```text\n{ref_text}\n```"
+            st.rerun()
 
-**[출처 과목]:** {selected_display_name}
-
-**[DB 원문 기준 조항 및 세부 내용]:**
-```text
-{ref_text}
+if st.session_state.feedback:
+    st.divider()
+    st.subheader("📊 채점 결과 / 모범 답안")
+    st.markdown(st.session_state.feedback)
+    
+    if st.button("🔊 결과/답안 음성으로 듣기", use_container_width=True):
+        clean_feedback = st.session_state.feedback.replace("*", "").replace("#", "").replace("-", "").replace("`", "")
+        speak_js(clean_feedback)
