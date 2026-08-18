@@ -202,14 +202,14 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 3. ⚡ 0.1초 즉시 정답 확인 (대기시간 0초)
+# 3. ⚡ 0.1초 즉시 정답 확인 (가로 스크롤 없는 줄바꿈 텍스트 출력)
 with col_act2:
     if st.button("💡 정답 및 해설 바로 확인 (0초)", use_container_width=True):
         if not st.session_state.question:
             st.warning("먼저 '새로운 문제 내기' 버튼을 눌러주세요.")
         else:
             ref_text = st.session_state.raw_doc if st.session_state.raw_doc else "원문 지문을 불러올 수 없습니다."
-            st.session_state.feedback = f"### 📖 DB 법령/지침 원문 모범 답안 (즉시 출력)\n\n**[출처 과목]:** {selected_display_name}\n\n**[DB 원문 기준 조항 및 세부 내용]:**\n```text\n{ref_text}\n```"
+            st.session_state.feedback = f"📖 **[출처 과목]:** {selected_display_name}\n\n**[DB 원문 기준 조항 및 세부 내용]:**\n\n{ref_text}"
             st.rerun()
 
 if st.session_state.feedback:
