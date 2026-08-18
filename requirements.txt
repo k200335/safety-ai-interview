@@ -1,0 +1,8 @@
+streamlit
+openai
+chromadb
+langchain
+langchain-community
+pypdf
+sentence-transformers
+torchvision
