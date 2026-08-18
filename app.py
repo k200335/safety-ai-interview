@@ -74,28 +74,31 @@ if "question" not in st.session_state:
 if "feedback" not in st.session_state:
     st.session_state.feedback = ""
 
-# 과목별 검색 키워드 매핑
-SUBJECT_KEYWORDS = {
-    "1. 산업안전보건법": ["산업안전보건법 사업주 의무", "안전보건관리체계", "근로자 작업중지권", "안전보건교육"],
-    "2. 산업안전보건기준에 관한 규칙": ["산업안전보건기준에 관한 규칙", "보호구 착용", "안전조치 기준", "작업장 환경"],
-    "3. 중대재해 처벌 등에 관한 법률": ["중대재해 처벌 등에 관한 법률", "경영책임자 의무", "안전보건 확보의무", "중대산업재해"],
-    "4. 가설공사 표준안전 작업지침": ["가설공사 표준안전 작업지침", "가설도로", "비계 및 작업발판", "동바리 설치"],
-    "5. 철골공사 표준안전 작업지침": ["철골공사 표준안전 작업지침", "철골 건립", "인양 작업", "구조물 가공"],
-    "6. 추락재해방지 표준안전 작업지침": ["추락재해방지 표준안전 작업지침", "안전난간", "추락방지와이어", "개구부 보호"],
-    "7. 해체공사 표준안전 작업지침": ["해체공사 표준안전 작업지침", "해체계획서", "압쇄작업", "파쇄 작업"],
-    "8. 터널공사 표준안전 작업지침": ["터널공사 표준안전 작업지침", "NATM공법", "막장 안전", "환기 및 낙반 예방"],
-    "9. 콘크리트공사 표준안전 작업지침": ["콘크리트공사 표준안전 작업지침", "거푸집 동바리", "타설 작업", "양생 작업"],
-    "10. 굴착공사 표준안전 작업지침": ["굴착공사 표준안전 작업지침", "흙막이 지보공", "사면 붕괴 예방", "굴착기 안전"],
-    "11. 사업장 위험성평가에 관한 지침": ["사업장 위험성평가에 관한 지침", "유해위험요인 파악", "위험성 결정", "수시 및 정기평가"],
-    "12. 기출문제": ["산업안전지도사 2차 3차 기출문제", "구술 면접 기출", "단골 기출 문항"]
-}
+# 12개 출제 카테고리 정의
+SUBJECTS = [
+    "1. 산업안전보건법",
+    "2. 산업안전보건기준에 관한 규칙",
+    "3. 중대재해 처벌 등에 관한 법률",
+    "4. 가설공사 표준안전 작업지침",
+    "5. 철골공사 표준안전 작업지침",
+    "6. 추락재해방지 표준안전 작업지침",
+    "7. 해체공사 표준안전 작업지침",
+    "8. 터널공사 표준안전 작업지침",
+    "9. 콘크리트공사 표준안전 작업지침",
+    "10. 굴착공사 표준안전 작업지침",
+    "11. 사업장 위험성평가에 관한 지침",
+    "12. 기출문제 (11회~16회)"
+]
 
 # --- UI 영역 ---
 st.subheader("📚 면접 법령/지침/기출 선택")
 selected_subject = st.selectbox(
     "학습할 출제 범위를 선택하세요:",
-    ["🎲 전체 (무작위)"] + list(SUBJECT_KEYWORDS.keys())
+    ["🎲 전체 (기출문제 기반 무작위)"] + SUBJECTS
 )
+
+# 무작위 검색을 보장하기 위한 다양화 시드 쿼리
+RANDOM_SEEDS = ["안전", "보건", "작업", "지침", "기준", "수칙", "계획", "평가", "재해", "관리", "설비", "공사"]
 
 col1, col2 = st.columns(2)
 
@@ -103,42 +106,43 @@ with col1:
     if st.button("🎲 새로운 문제 내기", use_container_width=True):
         st.session_state.feedback = ""
         try:
-            with st.spinner("🎯 기출 문제 패턴을 분석하여 고품질 문제를 출제 중입니다..."):
-                # 키워드 선정
-                if selected_subject == "🎲 전체 (무작위)":
-                    all_keywords = [kw for kws in SUBJECT_KEYWORDS.values() for kw in kws]
-                    query_keyword = random.choice(all_keywords)
+            with st.spinner("🎯 기출문제(11~16회)에서 키워드를 추출하여 고품질 문제를 생성 중입니다..."):
+                seed_word = random.choice(RANDOM_SEEDS)
+                
+                # 1단계: 기출문제 DB에서 임의의 기출 문맥/패턴 무작위 추출
+                if selected_subject == "🎲 전체 (기출문제 기반 무작위)":
+                    search_query = f"기출문제 {seed_word}"
                 else:
-                    query_keyword = random.choice(SUBJECT_KEYWORDS[selected_subject])
+                    search_query = f"{selected_subject} 기출 {seed_word}"
+                
+                past_docs = vector_db.similarity_search(search_query, k=2)
+                past_context = "\n".join([d.page_content for d in past_docs]) if past_docs else search_query
 
-                # 1단계: 기출문제 DB 검색
-                past_docs = vector_db.similarity_search(f"기출문제 {query_keyword}", k=1)
-                past_context = past_docs[0].page_content if past_docs else ""
-
-                # 2단계: 관련 법령/지침 DB 검색
-                law_docs = vector_db.similarity_search(query_keyword, k=1)
+                # 2단계: 추출된 기출 문맥을 바탕으로 법령 DB 연계 검색
+                law_docs = vector_db.similarity_search(past_context[:100], k=1)
                 law_context = law_docs[0].page_content if law_docs else ""
 
+                # 3단계: AI가 기출 키워드 및 문제 유형을 능동적으로 해석하여 질문 생성
                 prompt = f"""
                 당신은 산업안전지도사 2차/3차 면접 시험의 수석 면접관입니다.
-                실제 출제되었던 기출문제의 유형과 관련 법령 지침을 바탕으로 응시자에게 제시할 최고 품질의 구술 면접 질문 1개를 만드세요.
+                제공된 [기출문제 데이터]에서 핵심 출제 주제와 문제 유형(키워드)을 직접 추출한 뒤, [관련 법령 및 지침]을 참조하여 실제 시험에 나올 법한 새로운 구술 면접 질문 1개를 생성하세요.
 
-                [기출문제 참조]
-                {past_context[:400]}
+                [기출문제 데이터 (11회~16회 연관)]
+                {past_context[:500]}
 
                 [관련 법령 및 지침]
                 {law_context[:400]}
 
-                [작성 지침]
-                1. 실제 면접관이 질문하듯 단도직입적이고 명확하게 질문하세요.
-                2. 인사말, 서론, 문항 번호 없이 오직 질문 문장(2문장 이내)만 출력하세요.
-                3. "상황을 설명하고 대책을 묻는" 실무형 면접 질문 스타일을 적극 활용하세요.
+                [작성 규칙]
+                1. 고정된 문항이 아닌, 기출문제의 핵심 개념을 응용한 고품질 구술 면접 질문을 만드세요.
+                2. 면접관이 질문하듯 서론, 인사말, 문항 번호 없이 오직 단도직입적인 질문(2문장 이내)만 출력하세요.
+                3. 실무 상황이나 특정 법령 조항의 구체적 대책을 묻는 형식으로 작성하세요.
                 """
 
                 response = client.chat.completions.create(
                     model="meta/llama-3.1-70b-instruct",
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.75,
+                    temperature=0.8,
                     max_tokens=150
                 )
                 st.session_state.question = response.choices[0].message.content
