@@ -1,4 +1,5 @@
 import os
+import random
 import streamlit as st
 import streamlit.components.v1 as components
 from langchain_community.vectorstores import Chroma
@@ -29,7 +30,7 @@ try:
 except Exception as e:
     st.error("ChromaDB 로드 실패. build_db.py가 먼저 실행되었는지 확인하세요.")
 
-# 3. 고품질 자연스러운 TTS 보이스 설정 (브라우저 최신 한국어 음성 탐색)
+# 3. 고품질 자연스러운 TTS 보이스 설정
 def speak_js(text_to_speak=""):
     if not text_to_speak:
         return
@@ -38,17 +39,15 @@ def speak_js(text_to_speak=""):
     <script>
     function playNaturalVoice(text) {{
         if (!('speechSynthesis' in window)) return;
-        
         window.speechSynthesis.cancel();
         
         var speakNow = function() {{
             var voices = window.speechSynthesis.getVoices();
             var msg = new SpeechSynthesisUtterance(text);
             msg.lang = 'ko-KR';
-            msg.rate = 0.95; // 자연스러운 속도
+            msg.rate = 0.95;
             msg.pitch = 1.0;
             
-            // 자연스러운 고품질 한국어 보이스 우선 선발 (Google/Microsoft 자연어 보이스)
             var naturalVoice = voices.find(function(v) {{
                 return v.lang.includes('ko') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Online'));
             }}) || voices.find(function(v) {{ return v.lang.includes('ko'); }});
@@ -56,7 +55,6 @@ def speak_js(text_to_speak=""):
             if (naturalVoice) {{
                 msg.voice = naturalVoice;
             }}
-            
             window.speechSynthesis.speak(msg);
         }};
 
@@ -76,31 +74,60 @@ if "question" not in st.session_state:
 if "feedback" not in st.session_state:
     st.session_state.feedback = ""
 
+# 12개 지정 학습 범위 및 키워드 매핑
+SUBJECT_KEYWORDS = {
+    "1. 산업안전보건법": ["산업안전보건법 사업주 의무", "안전보건관리체계", "근로자 작업중지권", "안전보건교육"],
+    "2. 산업안전보건기준에 관한 규칙": ["산업안전보건기준에 관한 규칙", "보호구 착용", "안전조치 기준", "작업장 환경"],
+    "3. 중대재해 처벌 등에 관한 법률": ["중대재해 처벌 등에 관한 법률", "경영책임자 의무", "안전보건 확보의무", "중대산업재해"],
+    "4. 가설공사 표준안전 작업지침": ["가설공사 표준안전 작업지침", "가설도로", "비계 및 작업발판", "동바리 설치"],
+    "5. 철골공사 표준안전 작업지침": ["철골공사 표준안전 작업지침", "철골 건립", "인양 작업", "구조물 가공"],
+    "6. 추락재해방지 표준안전 작업지침": ["추락재해방지 표준안전 작업지침", "안전난간", "추락방지와이어", "개구부 보호"],
+    "7. 해체공사 표준안전 작업지침": ["해체공사 표준안전 작업지침", "해체계획서", "압쇄작업", "파쇄 작업"],
+    "8. 터널공사 표준안전 작업지침": ["터널공사 표준안전 작업지침", "NATM공법", "막장 안전", "환기 및 낙반 예방"],
+    "9. 콘크리트공사 표준안전 작업지침": ["콘크리트공사 표준안전 작업지침", "거푸집 동바리", "타설 작업", "양생 작업"],
+    "10. 굴착공사 표준안전 작업지침": ["굴착공사 표준안전 작업지침", "흙막이 지보공", "사면 붕괴 예방", "굴착기 안전"],
+    "11. 사업장 위험성평가에 관한 지침": ["사업장 위험성평가에 관한 지침", "유해위험요인 파악", "위험성 결정", "수시 및 정기평가"],
+    "12. 기출문제": ["산업안전지도사 2차 3차 기출문제", "구술 면접 기출", "단골 기출 문항"]
+}
+
+# --- UI 영역 ---
+st.subheader("📚 면접 법령/지침/기출 선택")
+selected_subject = st.selectbox(
+    "학습할 출제 범위를 선택하세요:",
+    ["🎲 전체 (무작위)"] + list(SUBJECT_KEYWORDS.keys())
+)
+
 col1, col2 = st.columns(2)
 
 with col1:
     if st.button("🎲 새로운 문제 내기", use_container_width=True):
         st.session_state.feedback = ""
         try:
-            with st.spinner("🚀 고속으로 문제를 출제 중입니다..."):
-                # 검색 속도 향상을 위해 상위 1개 핵심 문서만 추출
-                docs = vector_db.similarity_search("산업안전보건법 사업주 의무 및 안전조치", k=1)
-                context_text = docs[0].page_content if docs else "산업안전보건법 관련 주요 제반 수칙"
+            with st.spinner("🚀 지정하신 범위에서 문제를 출제 중입니다..."):
+                # 키워드 선정
+                if selected_subject == "🎲 전체 (무작위)":
+                    all_keywords = [kw for kws in SUBJECT_KEYWORDS.values() for kw in kws]
+                    query_keyword = random.choice(all_keywords)
+                else:
+                    query_keyword = random.choice(SUBJECT_KEYWORDS[selected_subject])
+
+                # DB 검색 (상위 2개 추출)
+                docs = vector_db.similarity_search(query_keyword, k=2)
+                context_text = "\n\n".join([d.page_content for d in docs]) if docs else query_keyword
 
                 prompt = f"""
                 당신은 산업안전지도사 2차/3차 면접 시험의 수석 면접관입니다.
-                아래 참고 자료를 바탕으로 응시자에게 물어볼 구술 면접 질문 1개만 만드세요.
-                서론이나 문항 번호 없이 질문 문장만 단도직입적으로 2문장 이내로 작성하세요.
+                아래 참고 자료를 바탕으로 응시자에게 질문할 구술 면접 질문 1개를 만드세요.
+                질문은 실제 구술 면접처럼 단도직입적이고 명확해야 하며, 서론이나 문항 번호 없이 질문 문장만 2문장 이내로 출력하세요.
 
                 [참고 자료]
-                {context_text[:400]}
+                {context_text[:500]}
                 """
 
-                # 반응 속도가 빠른 70B 모델 적용
                 response = client.chat.completions.create(
                     model="meta/llama-3.1-70b-instruct",
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.6,
+                    temperature=0.85,
                     max_tokens=150
                 )
                 st.session_state.question = response.choices[0].message.content
