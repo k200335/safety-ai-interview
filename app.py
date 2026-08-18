@@ -111,7 +111,6 @@ with col1:
                 if selected_subject == "🎲 전체 (무작위 기출 추출)":
                     search_query = "산업안전지도사 2차 3차 면접 기출문제 조항"
                 else:
-                    # 세부 조항 타겟팅 키워드 강화
                     search_query = f"{subject_clean} 구조 설치기준 준수사항 안전조치 조항"
                 
                 past_docs = vector_db.similarity_search(search_query, k=4)
@@ -129,16 +128,15 @@ with col1:
                 {chosen_doc[:700]}
 
                 [엄격 출제 규칙]:
-                1. '보호구 착용', '일반 안전교육' 같은 범용적이고 일반적인 질문은 절대 출제하지 마세요.
-                2. 반드시 [{subject_clean}]의 세부 조항에 명시된 구체적인 '설치 기준', '구조', '간격', '치수', '재료 기준', '작업시 준수사항'에서만 출제하세요.
-                3. 실제 시험 기출 스타일(~의 설치기준 3가지를 설명하시오, ~의 유의사항을 말하시오 등)로 단도직입적인 구술 질문 1개만 작성하세요.
-                4. 서론, 인사말, 문항 번호 없이 오직 면접 질문 문장(1~2문장)만 출력하세요.
+                1. 반드시 [{subject_clean}]의 세부 조항에 명시된 구체적인 '설치 기준', '구조', '간격', '치수', '재료 기준' 등에서만 출제하세요.
+                2. 질문 작성 시 관련 법령/지침 조항이나 기준을 구체적으로 대답할 수 있는 질문을 작성하세요.
+                3. 서론, 인사말, 문항 번호 없이 오직 단도직입적인 질문(1~2문장)만 출력하세요.
                 """
 
                 response = client.chat.completions.create(
                     model="meta/llama-3.1-70b-instruct",
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.2,
+                    temperature=0.1,
                     max_tokens=100
                 )
                 st.session_state.question = response.choices[0].message.content
@@ -163,29 +161,30 @@ if st.button("📝 답안 제출 및 채점받기", type="primary", use_containe
         st.warning("답변을 입력해 주세요.")
     else:
         try:
-            with st.spinner("⚡ 채점 진행 중..."):
-                docs = vector_db.similarity_search(user_answer_input, k=1)
-                ref_text = docs[0].page_content if docs else ""
+            with st.spinner("⚡ 법령 조항 근거 기반 정밀 채점 진행 중..."):
+                docs = vector_db.similarity_search(user_answer_input, k=2)
+                ref_text = "\n".join([d.page_content for d in docs]) if docs else ""
 
                 eval_prompt = f"""
-                산업안전지도사 면접관으로서 다음 답변을 평가하세요.
+                당신은 산업안전지도사 수석 면접관입니다. 다음 답변을 법령 기준에 따라 명확한 조항 근거를 들어 평가하세요.
 
                 [질문]: {st.session_state.question}
                 [답변]: {user_answer_input}
-                [법령/지침 기준]: {ref_text[:300]}
+                [근거 법령/지침 데이터]:
+                {ref_text[:500]}
 
                 [출력 양식]:
                 1. 결과: (합격/불합격/보완필요)
                 2. 점수: (100점 만점)
-                3. 핵심 피드백: (2문장 이내)
-                4. 모범 답안: (2문장 이내)
+                3. 핵심 피드백: (지침/법령의 근거 조항 번호 및 정확한 치수/수치 지적)
+                4. 모범 답안: (관련 법령/지침 조항 명칭 및 제0조 조항 근거를 명시하여 정확한 모범답안 작성)
                 """
 
                 eval_response = client.chat.completions.create(
                     model="meta/llama-3.1-70b-instruct",
                     messages=[{"role": "user", "content": eval_prompt}],
                     temperature=0.1,
-                    max_tokens=250
+                    max_tokens=300
                 )
                 st.session_state.feedback = eval_response.choices[0].message.content
                 st.rerun()
@@ -194,5 +193,5 @@ if st.button("📝 답안 제출 및 채점받기", type="primary", use_containe
 
 if st.session_state.feedback:
     st.divider()
-    st.subheader("📊 채점 결과")
+    st.subheader("📊 채점 결과 (법령 근거 포함)")
     st.markdown(st.session_state.feedback)
