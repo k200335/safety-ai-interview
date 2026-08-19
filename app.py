@@ -8,26 +8,26 @@ from openai import OpenAI
 
 st.set_page_config(page_title="산업안전지도사 법령 완전 암기 카드", layout="centered")
 
-# 🎨 폰트 크기 확대 및 가독성 개선 커스텀 CSS 적용
+# 🎨 폰트 크기 2배 확대 및 가독성 최적화 커스텀 CSS 적용
 st.markdown("""
 <style>
-    /* 출제 조항 문제 박스 글씨 크기 확대 */
+    /* 출제 조항 문제 박스 글씨 크기 2배 확대 */
     .stInfo {
-        font-size: 1.2rem !important;
-        line-height: 1.8 !important;
-        font-weight: 500 !important;
+        font-size: 1.8rem !important;
+        line-height: 2.0 !important;
+        font-weight: 600 !important;
     }
-    /* 모범 답안 원문 박스 글씨 크기 확대 */
+    /* 모범 답안 원문 박스 글씨 크기 2배 확대 */
     .stSuccess {
-        font-size: 1.25rem !important;
-        line-height: 1.85 !important;
-        font-weight: 500 !important;
+        font-size: 1.8rem !important;
+        line-height: 2.0 !important;
+        font-weight: 600 !important;
         white-space: pre-wrap !important; /* 줄바꿈 및 들여쓰기 보존 */
     }
-    /* 답안 입력창 폰트 크기 확대 */
+    /* 답안 작성 입력창 폰트 크기 확대 */
     textarea {
-        font-size: 1.15rem !important;
-        line-height: 1.6 !important;
+        font-size: 1.4rem !important;
+        line-height: 1.8 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -224,7 +224,7 @@ with col_nav3:
 
 st.divider()
 
-# 📋 [문제 카드] (글자 크기 확대 커스텀 적용 영역)
+# 📋 [문제 카드] (2배 확대 적용)
 st.subheader("📋 [문제] 조항 암기")
 st.info(f"**[출제 조항]:**\n\n{q_text}\n\n---\n**👉 문제:** 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.")
 
@@ -282,7 +282,7 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 모범 답안 원문 표시 (글자 크기 확대 커스텀 적용 영역)
+# 모범 답안 원문 표시 (2배 확대 적용)
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
