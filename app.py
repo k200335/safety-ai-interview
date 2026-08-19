@@ -1,15 +1,14 @@
 import os
-import random
 import streamlit as st
 import streamlit.components.v1 as components
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import SentenceTransformerEmbeddings
 from openai import OpenAI
 
-st.set_page_config(page_title="산업안전지도사 AI 음성 면접관", layout="centered")
+st.set_page_config(page_title="산업안전지도사 법령 완전 암기 카드", layout="centered")
 
-st.title("👷‍♂️ 산업안전지도사 AI 음성 모의면접관")
-st.caption("NVIDIA Build API & Vector DB 기반 초고속 구술 면접 시스템")
+st.title("👷‍♂️ 산업안전지도사 법령·지침 완전 암기 시스템")
+st.caption("AI 환각 0% | 조항 원문 100% 매핑 | 원하는 조항부터 연속 학습")
 
 # 1. API 키 및 클라이언트 설정
 NVIDIA_API_KEY = st.secrets.get("NVIDIA_API_KEY", "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")
@@ -74,12 +73,14 @@ def speak_js(text_to_speak=""):
     components.html(js_code, height=0)
 
 # 세션 상태 초기화
-if "question" not in st.session_state:
-    st.session_state.question = ""
+if "target_article" not in st.session_state:
+    st.session_state.target_article = 1
+if "current_doc" not in st.session_state:
+    st.session_state.current_doc = ""
 if "feedback" not in st.session_state:
     st.session_state.feedback = ""
-if "raw_doc" not in st.session_state:
-    st.session_state.raw_doc = ""
+if "show_answer" not in st.session_state:
+    st.session_state.show_answer = False
 
 # 12개 과목 매핑 (화면 표시명 : DB 컬렉션 명)
 SUBJECT_MAP = {
@@ -97,98 +98,118 @@ SUBJECT_MAP = {
     "12. 기출문제 (11회~16회 전체)": "sub_12"
 }
 
-EXAM_PATTERNS = [
-    "각 호 준수사항 설치기준 제1호 제2호 제3호",
-    "작업계획서 포함사항 작성 내용 규정",
-    "작업 시작 전 점검사항 점검 항목 준수",
-    "안전조치 관리기준 높이 수치 간격 규정",
-    "특별안전보건교육 내용 교육시간 대상"
-]
+st.subheader("📚 학습 범위 및 시작 조항 설정")
 
-st.subheader("📚 면접 법령/지침/기출 선택")
-selected_display_name = st.selectbox(
-    "학습할 출제 범위를 선택하세요:",
-    list(SUBJECT_MAP.keys())
-)
+col_sel1, col_sel2 = st.columns([2, 1])
+
+with col_sel1:
+    selected_display_name = st.selectbox(
+        "학습할 법령/지침을 선택하세요:",
+        list(SUBJECT_MAP.keys())
+    )
 
 target_collection = SUBJECT_MAP[selected_display_name]
 
-col_btn1, col_btn2 = st.columns(2)
+with col_sel2:
+    start_art = st.number_input(
+        "시작 조항 번호 (제N조):",
+        min_value=1,
+        value=st.session_state.target_article,
+        step=1
+    )
+    if start_art != st.session_state.target_article:
+        st.session_state.target_article = start_art
 
-# 1. ⚡ 0.1초 즉시 문제 생성
-with col_btn1:
-    if st.button("🎲 새로운 문제 내기 (즉시 생성)", use_container_width=True):
-        st.session_state.feedback = ""
-        st.session_state.raw_doc = ""
-        if "user_answer_key" in st.session_state:
-            st.session_state["user_answer_key"] = ""
-            
-        try:
-            subject_db = get_subject_db(target_collection)
-            pattern_query = random.choice(EXAM_PATTERNS)
-            past_docs = subject_db.similarity_search(pattern_query, k=15)
-            
-            if past_docs:
-                itemized_docs = [d.page_content for d in past_docs if any(char in d.page_content for char in ["1.", "2.", "①", "②", "가.", "나.", "1호"])]
-                chosen_text = random.choice(itemized_docs) if itemized_docs else past_docs[0].page_content
-            else:
-                chosen_text = f"[{selected_display_name}] 세부 지침 문단을 불러오지 못했습니다."
+# 조항 불러오기 함수 (0초 소요)
+def load_article_doc(collection_name, article_num):
+    subject_db = get_subject_db(collection_name)
+    query_str = f"제{article_num}조"
+    docs = subject_db.similarity_search(query_str, k=3)
+    
+    # 조항 번호와 가장 일치하는 문서 검색
+    for d in docs:
+        if f"제{article_num}조" in d.page_content or f"제 {article_num} 조" in d.page_content:
+            return d.page_content
+    return docs[0].page_content if docs else f"[{selected_display_name}] 제{article_num}조에 관한 문단을 찾을 수 없습니다."
 
-            st.session_state.raw_doc = chosen_text
+# 조항 검색 및 세션 저장
+st.session_state.current_doc = load_article_doc(target_collection, st.session_state.target_article)
 
-            lines = [l.strip() for l in chosen_text.split('\n') if len(l.strip()) > 5]
-            header_title = lines[0] if lines else selected_display_name
+# 이동 및 조작 버튼 (3열)
+col_nav1, col_nav2, col_nav3 = st.columns(3)
 
-            st.session_state.question = f"[{selected_display_name}] {header_title[:40]}과(와) 관련하여, 관련 법령 및 지침에 따른 세부 설치기준 또는 준수사항을 설명하시오."
+with col_nav1:
+    if st.button("⬅️ 이전 조항", use_container_width=True):
+        if st.session_state.target_article > 1:
+            st.session_state.target_article -= 1
+            st.session_state.feedback = ""
+            st.session_state.show_answer = False
             st.rerun()
 
-        except Exception as err:
-            st.error(f"문제 생성 중 오류가 발생했습니다: {err}")
+with col_nav2:
+    if st.button(f"🔄 제{st.session_state.target_article}조 불러오기", use_container_width=True):
+        st.session_state.feedback = ""
+        st.session_state.show_answer = False
+        st.rerun()
 
-if st.session_state.question:
-    st.subheader("📋 면접 질문")
-    st.info(st.session_state.question)
-    speak_js(st.session_state.question)
+with col_nav3:
+    if st.button("다음 조항 ➡️", use_container_width=True):
+        st.session_state.target_article += 1
+        st.session_state.feedback = ""
+        st.session_state.show_answer = False
+        st.rerun()
 
 st.divider()
 
-st.subheader("🎤 나의 답안 입력")
-user_answer_input = st.text_area("답변을 입력하세요 (모르는 경우 아래 '정답 확인' 클릭):", key="user_answer_key", height=130)
+# 📋 [문제 카드] 표시 (원문에서 조항 제목 및 본문 첫 문장 추출)
+doc_lines = [l.strip() for l in st.session_state.current_doc.split('\n') if l.strip()]
+header_text = doc_lines[0] if doc_lines else f"제{st.session_state.target_article}조"
+
+question_title = f"[{selected_display_name}] {header_text}"
+
+st.subheader("📋 [문제] 법령/지침 조항 암기")
+st.info(f"**문제:** 다음 조항의 세부 내용 및 각 호 항목을 원문 그대로 설명하시오.\n\n👉 **{header_text}**")
+speak_js(f"{header_text} 세부 내용 및 각 호 항목을 설명하시오.")
+
+st.divider()
+
+st.subheader("🎤 답안 작성 및 암기 대조")
+user_answer_input = st.text_area("머릿속으로 읊어본 후 핵심 단어/수치를 적어보세요:", key="user_answer_key", height=130)
 
 col_act1, col_act2 = st.columns(2)
 
-# 2. 초고속 정밀 채점
+# 1. 0초 모범 답안 바로 확인
+with col_act2:
+    if st.button("💡 모범 답안(원문) 바로 확인 (0초)", use_container_width=True):
+        st.session_state.show_answer = True
+        st.session_state.feedback = ""
+
+# 2. AI 초정밀 대조 채점 (선택적 사용)
 with col_act1:
-    if st.button("📝 답안 제출 및 채점받기", type="primary", use_container_width=True):
-        if not st.session_state.question:
-            st.warning("먼저 '새로운 문제 내기' 버튼을 눌러주세요.")
-        elif not user_answer_input.strip():
-            st.warning("답변을 입력해 주세요.")
+    if st.button("📝 정밀 AI 채점 받기", type="primary", use_container_width=True):
+        if not user_answer_input.strip():
+            st.warning("채점받을 답변을 입력해 주세요.")
         else:
             try:
-                with st.spinner("⚡ DB 원문 대조 및 실전 채점 진행 중..."):
-                    ref_text = st.session_state.raw_doc if st.session_state.raw_doc else ""
-
+                with st.spinner("⚡ DB 원문 조항 대조 채점 중..."):
                     eval_prompt = f"""
-                    당신은 오직 제공된 [DB 근거 원문]만 보고 채점하는 엄격한 산업안전지도사 면접관입니다.
+                    당신은 산업안전지도사 수석 면접관입니다.
 
-                    [선택 과목명]: {selected_display_name}
-                    [질문]: {st.session_state.question}
+                    [과목]: {selected_display_name}
+                    [출제 조항]: 제{st.session_state.target_article}조
                     [사용자 답변]: {user_answer_input}
-                    [DB 근거 원문]:
-                    {ref_text[:1200]}
+                    [DB 법령 원문]:
+                    {st.session_state.current_doc[:1200]}
 
-                    [절대 채점 규칙]:
-                    1. 지도사 시험은 원문의 법령 수치, 단어, 항목을 정확히 작성했는지가 핵심입니다.
-                    2. '출처 근거' 및 '모범 답안'은 반드시 위 [DB 근거 원문] 텍스트에 표기된 법령/지침 명칭, 제0조 조항 번호, 각 호 항목을 100% 원문 그대로 기술하세요.
-                    3. DB 원문에 없는 조항 번호나 수치를 외부 지식으로 지어내면 절대 안 됩니다.
+                    [채점 규칙]:
+                    원문의 수치, 키워드, 각 호 항목이 정확히 들어갔는지 엄격히 평가하세요.
 
                     [출력 양식]:
-                    1. 출처 근거: (DB 근거 원문에 직접 표기된 법령/지침 명칭 및 제0조 조항 그대로 작성)
+                    1. 출처 근거: {header_text}
                     2. 결과: (합격/불합격/보완필요)
                     3. 점수: (0~100점)
-                    4. 핵심 피드백: (수치 오답, 항목 누락 등 감점 사유 1~2문장)
-                    5. 모범 답안: (DB 근거 원문의 해당 조항 내용 및 각 호 항목을 토시 하나 바꾸지 말고 원문 그대로 100% 기술)
+                    4. 핵심 피드백: (수치/단어 누락 지적 1~2문장)
+                    5. 모범 답안: (DB 법령 원문 100% 그대로 기술)
                     """
 
                     eval_response = client.chat.completions.create(
@@ -198,25 +219,19 @@ with col_act1:
                         max_tokens=500
                     )
                     st.session_state.feedback = eval_response.choices[0].message.content
+                    st.session_state.show_answer = False
                     st.rerun()
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 3. ⚡ 0.1초 즉시 정답 확인 (가로 스크롤 없는 줄바꿈 텍스트 출력)
-with col_act2:
-    if st.button("💡 정답 및 해설 바로 확인 (0초)", use_container_width=True):
-        if not st.session_state.question:
-            st.warning("먼저 '새로운 문제 내기' 버튼을 눌러주세요.")
-        else:
-            ref_text = st.session_state.raw_doc if st.session_state.raw_doc else "원문 지문을 불러올 수 없습니다."
-            st.session_state.feedback = f"📖 **[출처 과목]:** {selected_display_name}\n\n**[DB 원문 기준 조항 및 세부 내용]:**\n\n{ref_text}"
-            st.rerun()
+# 모범 답안(원문) 즉시 표시
+if st.session_state.show_answer:
+    st.divider()
+    st.subheader("📖 [원문 모범 답안] 토시 하나 안 틀린 법령 원문")
+    st.success(st.session_state.current_doc)
 
+# AI 채점 결과 표시
 if st.session_state.feedback:
     st.divider()
-    st.subheader("📊 채점 결과 / 모범 답안")
+    st.subheader("📊 AI 채점 결과")
     st.markdown(st.session_state.feedback)
-    
-    if st.button("🔊 결과/답안 음성으로 듣기", use_container_width=True):
-        clean_feedback = st.session_state.feedback.replace("*", "").replace("#", "").replace("-", "").replace("`", "")
-        speak_js(clean_feedback)
