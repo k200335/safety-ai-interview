@@ -158,7 +158,6 @@ def get_full_article_content(collection_name, article_num):
             q_text = article_raw[:split_idx].strip()
             a_text_raw = article_raw[split_idx:].strip()
             
-            # 간격이 너무 벌어지지 않도록 \n\n 대신 단일 \n 및 띄어쓰기로 정돈
             a_text = re.sub(r'(?<!\d)(\d+\.)', r'\n\1', a_text_raw)
             a_text = re.sub(r'([①-⑮])', r'\n\1', a_text)
             a_text = re.sub(r'([가-하]\.)', r'\n   \1', a_text)
@@ -201,7 +200,7 @@ with col_nav3:
 
 st.divider()
 
-# 📋 [문제 카드]
+# 📋 [문제 카드] (24px - 20% 보정 폰트 적용)
 st.subheader("📋 [문제] 조항 암기")
 
 q_html = f"""
@@ -212,17 +211,17 @@ q_html = f"""
     border-radius: 8px; 
     font-family: sans-serif;
     color: #1c2833;">
-    <div style="font-size: 17px; font-weight: bold; color: #2980b9; margin-bottom: 10px;">[출제 조항]:</div>
-    <div style="font-size: 20px; line-height: 1.6; font-weight: 600; color: #111;">
+    <div style="font-size: 20px; font-weight: bold; color: #2980b9; margin-bottom: 10px;">[출제 조항]:</div>
+    <div style="font-size: 24px; line-height: 1.7; font-weight: 600; color: #111;">
         {q_text.replace('\n', '<br>')}
     </div>
     <hr style="border: 0.5px solid #aeb6bf; margin: 15px 0;">
-    <div style="font-size: 18px; font-weight: bold; color: #d35400;">
+    <div style="font-size: 21px; font-weight: bold; color: #d35400;">
         👉 문제: 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.
     </div>
 </div>
 """
-q_box_height = max(200, int(len(q_text) * 0.7) + 120)
+q_box_height = max(220, int(len(q_text) * 0.8) + 140)
 components.html(q_html, height=q_box_height, scrolling=True)
 
 # 출제 문제 자동 음성 출력
@@ -279,7 +278,7 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 모범 답안 원문 표시 (간격 조율 및 높이 확장으로 잘림 방지)
+# 모범 답안 원문 표시 (24px - 20% 보정 폰트 적용)
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
@@ -292,13 +291,12 @@ if st.session_state.show_answer:
         border-radius: 8px; 
         font-family: sans-serif;
         color: #145a32;">
-        <div style="font-size: 20px; line-height: 1.6; font-weight: 600; white-space: pre-wrap; color: #111;">
+        <div style="font-size: 24px; line-height: 1.7; font-weight: 600; white-space: pre-wrap; color: #111;">
             {a_text}
         </div>
     </div>
     """
-    # 넉넉한 높이 계산 및 스크롤바 허용
-    a_box_height = max(350, int(len(a_text) * 0.8) + 150)
+    a_box_height = max(400, int(len(a_text) * 0.9) + 160)
     components.html(a_html, height=a_box_height, scrolling=True)
     
     st.write("")
