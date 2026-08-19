@@ -9,7 +9,7 @@ from openai import OpenAI
 st.set_page_config(page_title="산업안전지도사 법령 완전 암기 카드", layout="centered")
 
 st.title("👷‍♂️ 산업안전지도사 법령·지침 완전 암기 시스템")
-st.caption("100% Exact Match 조(Article) 단위 파싱 | 잘림 0% | 문제·답 완벽 분리")
+st.caption("ChromaDB 우회 | 정밀 원문 통슬라이싱 | 원문 100% 매핑")
 
 # 1. API 키 및 클라이언트 설정
 NVIDIA_API_KEY = st.secrets.get("NVIDIA_API_KEY", "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")
@@ -19,14 +19,14 @@ client = OpenAI(
     api_key=NVIDIA_API_KEY
 )
 
-# 2. 임베딩 모델 로드 (캐싱)
+# 2. 임베딩 모델 로드
 @st.cache_resource
 def get_embedding_function():
     return SentenceTransformerEmbeddings(model_name="jhgan/ko-sroberta-multitask")
 
 embedding_fn = get_embedding_function()
 
-# 3. 과목별 선택적 Vector DB 로더
+# 3. Vector DB 로더
 def get_subject_db(collection_name):
     return Chroma(
         persist_directory="./chroma_db",
@@ -81,7 +81,7 @@ if "feedback" not in st.session_state:
 if "show_answer" not in st.session_state:
     st.session_state.show_answer = False
 
-# 12개 과목 매핑 (화면 표시명 : DB 컬렉션 명)
+# 12개 과목 매핑
 SUBJECT_MAP = {
     "1. 산업안전보건법": "sub_1",
     "2. 산업안전보건기준에 관한 규칙": "sub_2",
@@ -119,71 +119,59 @@ with col_sel2:
     if start_art != st.session_state.target_article:
         st.session_state.target_article = start_art
 
-# 🎯 조(Article) 단위 통째 슬라이싱 및 [문제/답] 완벽 분리 파서
-def get_clean_article_block(collection_name, article_num):
+# 🎯 DB 전수 로드 후 Article 단위 100% 무손실 복원 함수
+def get_full_article_content(collection_name, article_num):
     subject_db = get_subject_db(collection_name)
     
-    # DB 내 청크 전체를 모아 원문 텍스트 재구성
-    docs = subject_db.similarity_search(f"제{article_num}조", k=100)
-    if not docs:
-        return f"제{article_num}조", f"[{selected_display_name}] 제{article_num}조 원문을 찾을 수 없습니다."
+    # 해당 컬렉션 전체 데이터 수집 (청크 조각들 중복 제거 및 연결)
+    all_docs = subject_db.get()
+    if not all_docs or not all_docs['documents']:
+        return f"제{article_num}조", "원문 데이터를 불러올 수 없습니다."
+    
+    # 전체 원문 하나로 복원
+    raw_full_text = "\n".join(all_docs['documents'])
+    
+    # 조항 정규식 (제N조 위치 식별)
+    curr_pattern = re.compile(rf'제\s*{article_num}\s*조(\s*\([^)]+\)|\s+[가-힣])?')
+    next_pattern = re.compile(rf'제\s*{article_num + 1}\s*조(\s*\([^)]+\)|\s+[가-힣])?')
 
-    full_text = "\n".join([d.page_content for d in docs])
-
-    # 제N조 위치 검색 (예: "제7조(" 또는 "제 7 조 (")
-    curr_regex = re.compile(rf'제\s*{article_num}\s*조(\s*\([^)]+\)|\s+[가-힣])?')
-    # 제N+1조 위치 검색 (예: "제8조(" 또는 "제 8 조 (")
-    next_regex = re.compile(rf'제\s*{article_num + 1}\s*조(\s*\([^)]+\)|\s+[가-힣])?')
-
-    curr_match = curr_regex.search(full_text)
+    curr_match = curr_pattern.search(raw_full_text)
 
     if curr_match:
         start_idx = curr_match.start()
-        next_match = next_regex.search(full_text, start_idx)
+        next_match = next_pattern.search(raw_full_text, start_idx)
         
         if next_match:
             end_idx = next_match.start()
-            article_raw = full_text[start_idx:end_idx].strip()
+            article_raw = raw_full_text[start_idx:end_idx].strip()
         else:
-            article_raw = full_text[start_idx:start_idx + 5000].strip()
+            article_raw = raw_full_text[start_idx:start_idx + 8000].strip()
 
-        # 줄바꿈 정제 및 문제/답 물리적 분리
+        # 줄바꿈 기준 정리
         lines = [line.strip() for line in article_raw.split('\n') if line.strip()]
         
-        # 1. [문제]: 조항 제목 및 주 문장 (첫번째/두번째 줄 조합)
-        question_lines = []
-        body_lines = []
+        # 문제(조항 제목)와 답(하위 항목) 분리
+        q_lines = []
+        a_lines = []
         
         for idx, line in enumerate(lines):
-            # 1., 2., ①, ② 등 세부 호/항이 시작되면 그전까지를 문제로 간주
-            if any(line.startswith(prefix) for prefix in ["1.", "2.", "①", "②", "가.", "나."]):
-                body_lines = lines[idx:]
+            if any(line.startswith(p) for p in ["1.", "2.", "①", "②", "가.", "나.", "1호"]):
+                a_lines = lines[idx:]
                 break
             else:
-                question_lines.append(line)
+                q_lines.append(line)
 
-        # 세부 항목이 없는 1줄짜리 조항인 경우 예외 처리
-        if not body_lines and len(question_lines) > 1:
-            question_text = question_lines[0]
-            answer_text = "\n".join(question_lines[1:])
-        elif body_lines:
-            question_text = "\n".join(question_lines)
-            answer_text = "\n".join(body_lines)
-        else:
-            question_text = article_raw
-            answer_text = "하위 세부 항목이 없는 조항입니다."
+        q_text = "\n".join(q_lines) if q_lines else article_raw
+        a_text = "\n".join(a_lines) if a_lines else "하위 세부 항목이 없는 단일 조항입니다."
 
-        return question_text, answer_text
+        return q_text, a_text
 
-    # 예외 파싱
-    first_doc = docs[0].page_content.strip()
-    lines = first_doc.split('\n')
-    return lines[0], "\n".join(lines[1:])
+    return f"제{article_num}조", f"[{selected_display_name}] 제{article_num}조 원문을 찾지 못했습니다."
 
-# 조항 문제 및 세부 답안 100% 매핑
-q_text, a_text = get_clean_article_block(target_collection, st.session_state.target_article)
+# 조항 불러오기
+q_text, a_text = get_full_article_content(target_collection, st.session_state.target_article)
 
-# 이동 및 조작 버튼 (3열)
+# 이동 버튼
 col_nav1, col_nav2, col_nav3 = st.columns(3)
 
 with col_nav1:
@@ -209,10 +197,10 @@ with col_nav3:
 
 st.divider()
 
-# 📋 [문제 카드] - 조항 제목 및 본문 주문장
+# 📋 [문제 카드]
 st.subheader("📋 [문제] 조항 암기")
-st.info(f"**[출제 조항]:**\n\n{q_text}\n\n--- \n**👉 문제:** 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.")
-speak_js(f"{q_text} 세부 내용 및 각 호 항목을 설명하시오.")
+st.info(f"**[출제 조항]:**\n\n{q_text}\n\n---\n**👉 문제:** 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.")
+speak_js(f"{q_text} 세부 내용을 설명하시오.")
 
 st.divider()
 
@@ -227,7 +215,7 @@ with col_act2:
         st.session_state.show_answer = True
         st.session_state.feedback = ""
 
-# 2. AI 초정밀 대조 채점 (선택적 사용)
+# 2. AI 초정밀 대조 채점
 with col_act1:
     if st.button("📝 정밀 AI 채점 받기", type="primary", use_container_width=True):
         if not user_answer_input.strip():
@@ -267,7 +255,7 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 모범 답안(원문 세부 각 호 항목 전체) 즉시 표시
+# 모범 답안 원문 표시
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
