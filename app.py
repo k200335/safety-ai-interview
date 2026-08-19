@@ -8,6 +8,30 @@ from openai import OpenAI
 
 st.set_page_config(page_title="산업안전지도사 법령 완전 암기 카드", layout="centered")
 
+# 🎨 폰트 크기 확대 및 가독성 개선 커스텀 CSS 적용
+st.markdown("""
+<style>
+    /* 출제 조항 문제 박스 글씨 크기 확대 */
+    .stInfo {
+        font-size: 1.2rem !important;
+        line-height: 1.8 !important;
+        font-weight: 500 !important;
+    }
+    /* 모범 답안 원문 박스 글씨 크기 확대 */
+    .stSuccess {
+        font-size: 1.25rem !important;
+        line-height: 1.85 !important;
+        font-weight: 500 !important;
+        white-space: pre-wrap !important; /* 줄바꿈 및 들여쓰기 보존 */
+    }
+    /* 답안 입력창 폰트 크기 확대 */
+    textarea {
+        font-size: 1.15rem !important;
+        line-height: 1.6 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("👷‍♂️ 산업안전지도사 법령·지침 완전 암기 시스템")
 st.caption("100% 원문 매핑 | 조·항·호·목 정밀 분리 | 실전 회상 암기")
 
@@ -200,11 +224,11 @@ with col_nav3:
 
 st.divider()
 
-# 📋 [문제 카드]
+# 📋 [문제 카드] (글자 크기 확대 커스텀 적용 영역)
 st.subheader("📋 [문제] 조항 암기")
 st.info(f"**[출제 조항]:**\n\n{q_text}\n\n---\n**👉 문제:** 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.")
 
-# ✨ 출제 문제 자동 음성 출력 재연결
+# 출제 문제 자동 음성 출력
 speak_js(f"{q_text} 세부 내용을 설명하시오.")
 
 st.divider()
@@ -258,6 +282,7 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
+# 모범 답안 원문 표시 (글자 크기 확대 커스텀 적용 영역)
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
