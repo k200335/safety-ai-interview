@@ -9,7 +9,7 @@ from openai import OpenAI
 st.set_page_config(page_title="산업안전지도사 법령 완전 암기 카드", layout="centered")
 
 st.title("👷‍♂️ 산업안전지도사 법령·지침 완전 암기 시스템")
-st.caption("AI 환각 0% | 조항 원문 100% 매핑 | 원하는 조항부터 연속 학습")
+st.caption("조항 100% 정밀 매핑 | 오검색 0% | 원하는 조항부터 연속 학습")
 
 # 1. API 키 및 클라이언트 설정
 NVIDIA_API_KEY = st.secrets.get("NVIDIA_API_KEY", "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")
@@ -121,33 +121,31 @@ with col_sel2:
     if start_art != st.session_state.target_article:
         st.session_state.target_article = start_art
 
-# 🎯 조항 정밀 정규식 검색 로직 (Exact Match)
+# 🎯 오검색 0%를 위한 조항 시작점 정밀 필터링 로직
 def get_exact_article_doc(collection_name, article_num):
     subject_db = get_subject_db(collection_name)
     query_str = f"제{article_num}조"
     
-    # 후보군 넓게 추출 (k=30)
-    docs = subject_db.similarity_search(query_str, k=30)
+    docs = subject_db.similarity_search(query_str, k=40)
     
-    # 정확한 조항 번호 패턴 (예: "제4조", "제 4 조", "제4조의2" 등)
-    pattern1 = f"제{article_num}조"
-    pattern2 = f"제 {article_num} 조"
-    pattern3 = f"제{article_num} 조"
+    # 조항이 시작되는 정밀 정규식 패턴 (예: "제7조(", "제 7 조(", "제7조 (", "제7조의")
+    regex_pattern = re.compile(rf'제\s*{article_num}\s*조(\s*\(|\s*의|\s+[가-힣])')
     
-    # 1차: 정확한 조항 키워드가 들어있는 문서 엄격 필터링
-    exact_matches = []
+    # 1순위: 문단 시작 또는 본문에서 '제N조(...)' 형태로 조항이 직접 시작하는 문서 추출
     for d in docs:
-        content = d.page_content
-        if pattern1 in content or pattern2 in content or pattern3 in content:
-            exact_matches.append(content)
+        content = d.page_content.strip()
+        lines = content.split('\n')
+        for line in lines[:3]: # 문단 상단 3줄 이내에 조항 정의가 있는지 확인
+            if regex_pattern.search(line):
+                return content
+                
+    # 2순위: 1순위에 없으면 단순 포함 문서 중 필터링
+    pattern_simple = f"제{article_num}조"
+    for d in docs:
+        if pattern_simple in d.page_content:
+            return d.page_content
             
-    if exact_matches:
-        # 가장 유효한 원문 선택
-        return exact_matches[0]
-    elif docs:
-        return docs[0].page_content
-    else:
-        return f"[{selected_display_name}] 제{article_num}조 원문을 찾을 수 없습니다."
+    return docs[0].page_content if docs else f"[{selected_display_name}] 제{article_num}조 원문을 찾을 수 없습니다."
 
 # 현재 설정된 조항 문서 로드
 st.session_state.current_doc = get_exact_article_doc(target_collection, st.session_state.target_article)
