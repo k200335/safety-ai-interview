@@ -1,4 +1,5 @@
 import os
+import re
 import streamlit as st
 import streamlit.components.v1 as components
 from langchain_community.vectorstores import Chroma
@@ -120,20 +121,36 @@ with col_sel2:
     if start_art != st.session_state.target_article:
         st.session_state.target_article = start_art
 
-# 조항 불러오기 함수 (0초 소요)
-def load_article_doc(collection_name, article_num):
+# 🎯 조항 정밀 정규식 검색 로직 (Exact Match)
+def get_exact_article_doc(collection_name, article_num):
     subject_db = get_subject_db(collection_name)
     query_str = f"제{article_num}조"
-    docs = subject_db.similarity_search(query_str, k=3)
     
-    # 조항 번호와 가장 일치하는 문서 검색
+    # 후보군 넓게 추출 (k=30)
+    docs = subject_db.similarity_search(query_str, k=30)
+    
+    # 정확한 조항 번호 패턴 (예: "제4조", "제 4 조", "제4조의2" 등)
+    pattern1 = f"제{article_num}조"
+    pattern2 = f"제 {article_num} 조"
+    pattern3 = f"제{article_num} 조"
+    
+    # 1차: 정확한 조항 키워드가 들어있는 문서 엄격 필터링
+    exact_matches = []
     for d in docs:
-        if f"제{article_num}조" in d.page_content or f"제 {article_num} 조" in d.page_content:
-            return d.page_content
-    return docs[0].page_content if docs else f"[{selected_display_name}] 제{article_num}조에 관한 문단을 찾을 수 없습니다."
+        content = d.page_content
+        if pattern1 in content or pattern2 in content or pattern3 in content:
+            exact_matches.append(content)
+            
+    if exact_matches:
+        # 가장 유효한 원문 선택
+        return exact_matches[0]
+    elif docs:
+        return docs[0].page_content
+    else:
+        return f"[{selected_display_name}] 제{article_num}조 원문을 찾을 수 없습니다."
 
-# 조항 검색 및 세션 저장
-st.session_state.current_doc = load_article_doc(target_collection, st.session_state.target_article)
+# 현재 설정된 조항 문서 로드
+st.session_state.current_doc = get_exact_article_doc(target_collection, st.session_state.target_article)
 
 # 이동 및 조작 버튼 (3열)
 col_nav1, col_nav2, col_nav3 = st.columns(3)
@@ -161,11 +178,9 @@ with col_nav3:
 
 st.divider()
 
-# 📋 [문제 카드] 표시 (원문에서 조항 제목 및 본문 첫 문장 추출)
+# 📋 [문제 카드] 표시
 doc_lines = [l.strip() for l in st.session_state.current_doc.split('\n') if l.strip()]
 header_text = doc_lines[0] if doc_lines else f"제{st.session_state.target_article}조"
-
-question_title = f"[{selected_display_name}] {header_text}"
 
 st.subheader("📋 [문제] 법령/지침 조항 암기")
 st.info(f"**문제:** 다음 조항의 세부 내용 및 각 호 항목을 원문 그대로 설명하시오.\n\n👉 **{header_text}**")
