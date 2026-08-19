@@ -8,17 +8,6 @@ from openai import OpenAI
 
 st.set_page_config(page_title="산업안전지도사 법령 완전 암기 카드", layout="centered")
 
-# 🎨 답안 작성 입력창 크기 파격 확대 CSS
-st.markdown("""
-<style>
-    textarea {
-        font-size: 1.5rem !important;
-        line-height: 1.8 !important;
-        font-weight: 500 !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 st.title("👷‍♂️ 산업안전지도사 법령·지침 완전 암기 시스템")
 st.caption("100% 원문 매핑 | 조·항·호·목 정밀 분리 | 실전 회상 암기")
 
@@ -211,28 +200,30 @@ with col_nav3:
 
 st.divider()
 
-# 📋 [문제 카드] (span 태그로 글자 크기 30px 강제 보장)
+# 📋 [문제 카드] (components.html을 통해 32px 초대형 글씨 강제 렌더링)
 st.subheader("📋 [문제] 조항 암기")
 
-q_text_formatted = q_text.replace('\n', '<br>')
-
-st.markdown(f"""
+q_html = f"""
 <div style="
     background-color: #e8f4f8; 
-    border-left: 8px solid #2980b9; 
+    border-left: 10px solid #2980b9; 
     padding: 25px; 
     border-radius: 10px; 
+    font-family: sans-serif;
     color: #1c2833;">
-    <span style="font-size: 26px !important; font-weight: bold; color: #2980b9;">[출제 조항]:</span><br><br>
-    <span style="font-size: 28px !important; line-height: 2.1 !important; font-weight: 600; display: inline-block;">
-        {q_text_formatted}
-    </span><br><br>
-    <hr style="border: 0.5px solid #aeb6bf;"><br>
-    <span style="font-size: 26px !important; font-weight: bold; color: #d35400;">
+    <div style="font-size: 26px; font-weight: bold; color: #2980b9; margin-bottom: 15px;">[출제 조항]:</div>
+    <div style="font-size: 32px; line-height: 1.9; font-weight: bold; color: #111;">
+        {q_text.replace('\n', '<br>')}
+    </div>
+    <hr style="border: 0.5px solid #aeb6bf; margin: 25px 0;">
+    <div style="font-size: 26px; font-weight: bold; color: #d35400;">
         👉 문제: 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.
-    </span>
+    </div>
 </div>
-""", unsafe_allow_html=True)
+"""
+# 텍스트 길이에 맞춰 박스 높이 자동 조절
+q_box_height = max(280, int(len(q_text) * 0.9) + 180)
+components.html(q_html, height=q_box_height, scrolling=True)
 
 # 출제 문제 자동 음성 출력
 speak_js(f"{q_text} 세부 내용을 설명하시오.")
@@ -288,24 +279,26 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 모범 답안 원문 표시 (span 태그로 글자 크기 28px 강제 보장)
+# 모범 답안 원문 표시 (components.html을 통해 32px 초대형 글씨 강제 렌더링)
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
     
-    a_text_formatted = a_text.replace('\n', '<br>')
-    st.markdown(f"""
+    a_html = f"""
     <div style="
         background-color: #e8f8f5; 
-        border-left: 8px solid #27ae60; 
+        border-left: 10px solid #27ae60; 
         padding: 25px; 
         border-radius: 10px; 
+        font-family: sans-serif;
         color: #145a32;">
-        <span style="font-size: 28px !important; line-height: 2.1 !important; font-weight: 600; display: inline-block;">
-            {a_text_formatted}
-        </span>
+        <div style="font-size: 32px; line-height: 1.9; font-weight: bold; white-space: pre-wrap; color: #111;">
+            {a_text}
+        </div>
     </div>
-    """, unsafe_allow_html=True)
+    """
+    a_box_height = max(250, int(len(a_text) * 0.8) + 150)
+    components.html(a_html, height=a_box_height, scrolling=True)
     
     st.write("")
     if st.button("🔊 모범 답안 음성으로 듣기", use_container_width=True):
