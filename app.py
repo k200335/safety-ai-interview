@@ -9,7 +9,7 @@ from openai import OpenAI
 st.set_page_config(page_title="산업안전지도사 법령 완전 암기 카드", layout="centered")
 
 st.title("👷‍♂️ 산업안전지도사 법령·지침 완전 암기 시스템")
-st.caption("100% 원문 매핑 | 조항·조문 정밀 분리 | 실전 회상 암기")
+st.caption("100% 원문 매핑 | 조·항·호·목 정밀 분리 | 실전 회상 암기")
 
 # 1. API 키 및 클라이언트 설정
 NVIDIA_API_KEY = st.secrets.get("NVIDIA_API_KEY", "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")
@@ -81,7 +81,7 @@ if "feedback" not in st.session_state:
 if "show_answer" not in st.session_state:
     st.session_state.show_answer = False
 
-# 📋 실제 data 폴더 목록에 맞춘 15개 과목 매핑
+# 📋 총 16개 전체 과목 매핑 (굴착공사 지침 포함)
 SUBJECT_MAP = {
     "1. 산업안전보건법": "sub_1",
     "2. 산업안전보건법 시행령": "sub_2",
@@ -124,11 +124,14 @@ with col_sel2:
         st.session_state.target_article = start_art
         st.session_state["user_answer_key"] = ""
 
-# 🎯 원문 조항 및 각 호 항목 정밀 파서
+# 🎯 원문 조항 및 항·호·목 정밀 파서 (가. 나. 다. 들여쓰기/줄바꿈 완벽 적용)
 def get_full_article_content(collection_name, article_num):
-    subject_db = get_subject_db(collection_name)
-    
-    all_docs = subject_db.get()
+    try:
+        subject_db = get_subject_db(collection_name)
+        all_docs = subject_db.get()
+    except Exception:
+        return f"제{article_num}조", f"⚠️ [{selected_display_name}] DB 데이터가 서버에 존재하지 않습니다. chroma_db 폴더를 GitHub에 push 해주세요."
+
     if not all_docs or not all_docs['documents']:
         return f"제{article_num}조", "원문 데이터를 불러올 수 없습니다."
     
@@ -157,9 +160,10 @@ def get_full_article_content(collection_name, article_num):
             q_text = article_raw[:split_idx].strip()
             a_text_raw = article_raw[split_idx:].strip()
             
-            # 호 번호마다 줄바꿈 보정
-            a_text = re.sub(r'(?<!\d)(\d+\.)', r'\n\n\1', a_text_raw)
-            a_text = re.sub(r'([①-⑮])', r'\n\n\1', a_text)
+            # ✨ 항(①), 호(1.), 목(가.) 단위 세부 줄바꿈 및 들여쓰기 정돈
+            a_text = re.sub(r'(?<!\d)(\d+\.)', r'\n\n\1', a_text_raw)      # 호 (1., 2.)
+            a_text = re.sub(r'([①-⑮])', r'\n\n\1', a_text)                   # 항 (①, ②)
+            a_text = re.sub(r'([가-하]\.)', r'\n   \1', a_text)               # 목 (가., 나., 다...)
             a_text = re.sub(r'(\b제\d+절\b)', r'\n\n\1', a_text).strip()
         else:
             q_text = article_raw
@@ -205,7 +209,7 @@ st.divider()
 st.subheader("📋 [문제] 조항 암기")
 st.info(f"**[출제 조항]:**\n\n{q_text}\n\n---\n**👉 문제:** 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.")
 
-# 음성 읽기
+# 자동 음성 읽기
 speak_js(f"{q_text} 세부 내용을 설명하시오.")
 
 st.divider()
