@@ -12,7 +12,7 @@ st.set_page_config(page_title="산업안전지도사 법령 완전 암기 카드
 st.markdown("""
 <style>
     textarea {
-        font-size: 1.8rem !important;
+        font-size: 1.5rem !important;
         line-height: 1.8 !important;
         font-weight: 500 !important;
     }
@@ -45,7 +45,7 @@ def get_subject_db(collection_name):
         collection_name=collection_name
     )
 
-# 웹 브라우저 TTS 기반 음성 출력 함수 (반복 재생 보완)
+# 웹 브라우저 TTS 기반 음성 출력 함수
 def speak_js(text_to_speak=""):
     if not text_to_speak:
         return
@@ -211,23 +211,26 @@ with col_nav3:
 
 st.divider()
 
-# 📋 [문제 카드] (초대형 2.8rem 폰트 적용)
+# 📋 [문제 카드] (span 태그로 글자 크기 30px 강제 보장)
 st.subheader("📋 [문제] 조항 암기")
+
+q_text_formatted = q_text.replace('\n', '<br>')
 
 st.markdown(f"""
 <div style="
     background-color: #e8f4f8; 
-    border-left: 10px solid #2980b9; 
+    border-left: 8px solid #2980b9; 
     padding: 25px; 
     border-radius: 10px; 
-    font-size: 2.8rem !important; 
-    line-height: 2.2 !important; 
-    font-weight: 700; 
     color: #1c2833;">
-    <strong>[출제 조항]:</strong><br><br>
-    {q_text.replace('\n', '<br>')}<br><br>
-    <hr style="border: 1px solid #aeb6bf;">
-    <strong>👉 문제:</strong> 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.
+    <span style="font-size: 26px !important; font-weight: bold; color: #2980b9;">[출제 조항]:</span><br><br>
+    <span style="font-size: 28px !important; line-height: 2.1 !important; font-weight: 600; display: inline-block;">
+        {q_text_formatted}
+    </span><br><br>
+    <hr style="border: 0.5px solid #aeb6bf;"><br>
+    <span style="font-size: 26px !important; font-weight: bold; color: #d35400;">
+        👉 문제: 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.
+    </span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -285,23 +288,22 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 모범 답안 원문 표시 (초대형 2.8rem 폰트 적용)
+# 모범 답안 원문 표시 (span 태그로 글자 크기 28px 강제 보장)
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
     
+    a_text_formatted = a_text.replace('\n', '<br>')
     st.markdown(f"""
     <div style="
         background-color: #e8f8f5; 
-        border-left: 10px solid #27ae60; 
+        border-left: 8px solid #27ae60; 
         padding: 25px; 
         border-radius: 10px; 
-        font-size: 2.8rem !important; 
-        line-height: 2.2 !important; 
-        font-weight: 700; 
-        color: #145a32;
-        white-space: pre-wrap;">
-        {a_text}
+        color: #145a32;">
+        <span style="font-size: 28px !important; line-height: 2.1 !important; font-weight: 600; display: inline-block;">
+            {a_text_formatted}
+        </span>
     </div>
     """, unsafe_allow_html=True)
     
