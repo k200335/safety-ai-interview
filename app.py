@@ -9,7 +9,7 @@ from openai import OpenAI
 st.set_page_config(page_title="산업안전지도사 법령 완전 암기 카드", layout="centered")
 
 st.title("👷‍♂️ 산업안전지도사 법령·지침 완전 암기 시스템")
-st.caption("ChromaDB 우회 | 문제·답 호(Item) 단위 정밀 분리 | 원문 100% 매핑")
+st.caption("ChromaDB 우회 | 호(Item) 단위 줄바꿈 보정 | 원문 100% 매핑")
 
 # 1. API 키 및 클라이언트 설정
 NVIDIA_API_KEY = st.secrets.get("NVIDIA_API_KEY", "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")
@@ -120,7 +120,7 @@ with col_sel2:
         st.session_state.target_article = start_art
         st.session_state["user_answer_key"] = ""
 
-# 🎯 호 번호(1., ①, 가. 등) 정규식 기반 정밀 [문제/답] 분리 함수
+# 🎯 호(1., 2., ① 등) 자동 줄바꿈 보정 파서
 def get_full_article_content(collection_name, article_num):
     subject_db = get_subject_db(collection_name)
     
@@ -145,16 +145,18 @@ def get_full_article_content(collection_name, article_num):
         else:
             article_raw = raw_full_text[start_idx:start_idx + 8000].strip()
 
-        # 🎯 첫 번째 호 번호(예: "1.", "①", "1호") 패턴 위치 탐색
+        # 첫 번째 호 번호(1., ① 등) 시작 지점 찾기
         item_match = re.search(r'(?<!\d)(1\.|①|가\.|1호)(?!\d)', article_raw)
         
         if item_match:
             split_idx = item_match.start()
             q_text = article_raw[:split_idx].strip()
-            a_text = article_raw[split_idx:].strip()
+            a_text_raw = article_raw[split_idx:].strip()
             
-            # 답 영역의 1., 2., 3. 가독성을 위해 줄바꿈 자동 보정
-            a_text = re.sub(r'(\d+\.)', r'\n\1', a_text).strip()
+            # ✨ 호 번호(1., 2., 3...) 및 절 구문 앞에 줄바꿈(\n\n)을 강제로 삽입하여 가독성 완성
+            a_text = re.sub(r'(?<!\d)(\d+\.)', r'\n\n\1', a_text_raw)
+            a_text = re.sub(r'([①-⑮])', r'\n\n\1', a_text)
+            a_text = re.sub(r'(\b제\d+절\b)', r'\n\n\1', a_text).strip()
         else:
             q_text = article_raw
             a_text = "하위 세부 항목(호)이 없는 조항입니다."
@@ -255,7 +257,7 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 모범 답안 원문 표시 및 줄바꿈 보정
+# 모범 답안 원문 표시 및 자동 줄바꿈
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
