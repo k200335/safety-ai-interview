@@ -34,22 +34,19 @@ def get_subject_db(collection_name):
         collection_name=collection_name
     )
 
-# 웹 브라우저 TTS 기반 음성 출력 함수 (반복 재생 및 엉킴 방지 보완)
+# 웹 브라우저 TTS 기반 음성 출력 함수 (반복 재생 보완)
 def speak_js(text_to_speak=""):
     if not text_to_speak:
         return
-    # 따옴표, 줄바꿈, 특수문자 정제
     clean_text = text_to_speak.replace('"', "'").replace('\n', ' ').replace('`', '').replace('\\', '')
-    
     js_code = f"""
     <script>
     (function() {{
         if (!('speechSynthesis' in window)) return;
-        
-        // 이전 음성 재생 즉시 강제 종료
         window.speechSynthesis.cancel();
         
         var speakNow = function() {{
+            window.speechSynthesis.cancel();
             var voices = window.speechSynthesis.getVoices();
             var msg = new SpeechSynthesisUtterance("{clean_text}");
             msg.lang = 'ko-KR';
@@ -63,16 +60,13 @@ def speak_js(text_to_speak=""):
             if (naturalVoice) {{
                 msg.voice = naturalVoice;
             }}
-            
-            // 소리 출력
             window.speechSynthesis.speak(msg);
         }};
 
-        // 음성 엔진 준비 체크 후 실행
         if (window.speechSynthesis.getVoices().length === 0) {{
             window.speechSynthesis.onvoiceschanged = speakNow;
         }} else {{
-            setTimeout(speakNow, 100);
+            setTimeout(speakNow, 150);
         }}
     }})();
     </script>
@@ -87,7 +81,7 @@ if "feedback" not in st.session_state:
 if "show_answer" not in st.session_state:
     st.session_state.show_answer = False
 
-# 📋 총 16개 전체 과목 매핑
+# 과목 매핑
 SUBJECT_MAP = {
     "1. 산업안전보건법": "sub_1",
     "2. 산업안전보건법 시행령": "sub_2",
@@ -130,13 +124,12 @@ with col_sel2:
         st.session_state.target_article = start_art
         st.session_state["user_answer_key"] = ""
 
-# 🎯 원문 조항 및 항·호·목 정밀 파서
 def get_full_article_content(collection_name, article_num):
     try:
         subject_db = get_subject_db(collection_name)
         all_docs = subject_db.get()
     except Exception:
-        return f"제{article_num}조", f"⚠️ [{selected_display_name}] DB 데이터가 서버에 존재하지 않습니다. chroma_db 폴더를 GitHub에 push 해주세요."
+        return f"제{article_num}조", f"⚠️ [{selected_display_name}] DB 데이터가 서버에 존재하지 않습니다."
 
     if not all_docs or not all_docs['documents']:
         return f"제{article_num}조", "원문 데이터를 불러올 수 없습니다."
@@ -158,7 +151,6 @@ def get_full_article_content(collection_name, article_num):
         else:
             article_raw = raw_full_text[start_idx:start_idx + 8000].strip()
 
-        # 첫 번째 호 번호(1., ① 등) 시작 지점 찾아서 문제/답 분리
         item_match = re.search(r'(?<!\d)(1\.|①|가\.|1호)(?!\d)', article_raw)
         
         if item_match:
@@ -166,10 +158,9 @@ def get_full_article_content(collection_name, article_num):
             q_text = article_raw[:split_idx].strip()
             a_text_raw = article_raw[split_idx:].strip()
             
-            # 항(①), 호(1.), 목(가.) 단위 세부 줄바꿈 및 들여쓰기 정돈
-            a_text = re.sub(r'(?<!\d)(\d+\.)', r'\n\n\1', a_text_raw)      # 호 (1., 2.)
-            a_text = re.sub(r'([①-⑮])', r'\n\n\1', a_text)                   # 항 (①, ②)
-            a_text = re.sub(r'([가-하]\.)', r'\n   \1', a_text)               # 목 (가., 나., 다...)
+            a_text = re.sub(r'(?<!\d)(\d+\.)', r'\n\n\1', a_text_raw)
+            a_text = re.sub(r'([①-⑮])', r'\n\n\1', a_text)
+            a_text = re.sub(r'([가-하]\.)', r'\n   \1', a_text)
             a_text = re.sub(r'(\b제\d+절\b)', r'\n\n\1', a_text).strip()
         else:
             q_text = article_raw
@@ -179,10 +170,8 @@ def get_full_article_content(collection_name, article_num):
 
     return f"제{article_num}조", f"[{selected_display_name}] 제{article_num}조 원문을 찾지 못했습니다."
 
-# 조항 불러오기
 q_text, a_text = get_full_article_content(target_collection, st.session_state.target_article)
 
-# 이동 버튼 및 입력창 초기화 처리
 col_nav1, col_nav2, col_nav3 = st.columns(3)
 
 with col_nav1:
@@ -215,6 +204,9 @@ st.divider()
 st.subheader("📋 [문제] 조항 암기")
 st.info(f"**[출제 조항]:**\n\n{q_text}\n\n---\n**👉 문제:** 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.")
 
+# ✨ 출제 문제 자동 음성 출력 재연결
+speak_js(f"{q_text} 세부 내용을 설명하시오.")
+
 st.divider()
 
 st.subheader("🎤 답안 작성 및 암기 대조")
@@ -222,13 +214,11 @@ user_answer_input = st.text_area("머릿속으로 읊어본 후 핵심 단어/�
 
 col_act1, col_act2 = st.columns(2)
 
-# 1. 0초 모범 답안 바로 확인
 with col_act2:
     if st.button("💡 모범 답안(원문 각 호) 바로 확인 (0초)", use_container_width=True):
         st.session_state.show_answer = True
         st.session_state.feedback = ""
 
-# 2. AI 초정밀 대조 채점
 with col_act1:
     if st.button("📝 정밀 AI 채점 받기", type="primary", use_container_width=True):
         if not user_answer_input.strip():
@@ -268,17 +258,15 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 모범 답안 원문 표시 및 자동 줄바꿈
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
     st.success(f"{a_text}")
     
-    if st.button("🔊 모범 답안 음성으로 듣기 (무한 다시듣기 가능)", use_container_width=True):
+    if st.button("🔊 모범 답안 음성으로 듣기", use_container_width=True):
         clean_ans = a_text.replace("*", "").replace("#", "").replace("-", "").replace("`", "")
         speak_js(clean_ans)
 
-# AI 채점 결과 표시
 if st.session_state.feedback:
     st.divider()
     st.subheader("📊 AI 채점 결과")
