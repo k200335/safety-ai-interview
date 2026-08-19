@@ -8,12 +8,13 @@ from openai import OpenAI
 
 st.set_page_config(page_title="산업안전지도사 법령 완전 암기 카드", layout="centered")
 
-# 🎨 답안 작성 입력창 크기 보정 CSS
+# 🎨 답안 작성 입력창 크기 파격 확대 CSS
 st.markdown("""
 <style>
     textarea {
-        font-size: 1.4rem !important;
+        font-size: 1.8rem !important;
         line-height: 1.8 !important;
+        font-weight: 500 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -210,22 +211,22 @@ with col_nav3:
 
 st.divider()
 
-# 📋 [문제 카드] (HTML 직접 지정으로 폰트 크기 2.2배 강제 확대)
+# 📋 [문제 카드] (초대형 2.8rem 폰트 적용)
 st.subheader("📋 [문제] 조항 암기")
 
 st.markdown(f"""
 <div style="
     background-color: #e8f4f8; 
-    border-left: 6px solid #2980b9; 
-    padding: 20px; 
-    border-radius: 8px; 
-    font-size: 1.85rem !important; 
-    line-height: 2.1 !important; 
-    font-weight: 600; 
+    border-left: 10px solid #2980b9; 
+    padding: 25px; 
+    border-radius: 10px; 
+    font-size: 2.8rem !important; 
+    line-height: 2.2 !important; 
+    font-weight: 700; 
     color: #1c2833;">
     <strong>[출제 조항]:</strong><br><br>
     {q_text.replace('\n', '<br>')}<br><br>
-    <hr style="border: 0.5px solid #aeb6bf;">
+    <hr style="border: 1px solid #aeb6bf;">
     <strong>👉 문제:</strong> 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.
 </div>
 """, unsafe_allow_html=True)
@@ -236,7 +237,7 @@ speak_js(f"{q_text} 세부 내용을 설명하시오.")
 st.divider()
 
 st.subheader("🎤 답안 작성 및 암기 대조")
-user_answer_input = st.text_area("머릿속으로 읊어본 후 핵심 단어/수치를 적어보세요:", key="user_answer_key", height=130)
+user_answer_input = st.text_area("머릿속으로 읊어본 후 핵심 단어/수치를 적어보세요:", key="user_answer_key", height=150)
 
 col_act1, col_act2 = st.columns(2)
 
@@ -284,21 +285,20 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 모범 답안 원문 표시 (HTML 직접 지정으로 폰트 크기 2.2배 강제 확대)
+# 모범 답안 원문 표시 (초대형 2.8rem 폰트 적용)
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
     
-    formatted_a_text = a_text.replace('\n', '<br>')
     st.markdown(f"""
     <div style="
         background-color: #e8f8f5; 
-        border-left: 6px solid #27ae60; 
-        padding: 20px; 
-        border-radius: 8px; 
-        font-size: 1.85rem !important; 
-        line-height: 2.1 !important; 
-        font-weight: 600; 
+        border-left: 10px solid #27ae60; 
+        padding: 25px; 
+        border-radius: 10px; 
+        font-size: 2.8rem !important; 
+        line-height: 2.2 !important; 
+        font-weight: 700; 
         color: #145a32;
         white-space: pre-wrap;">
         {a_text}
