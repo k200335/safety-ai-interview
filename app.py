@@ -1,3 +1,11 @@
+아이고, 캡처를 보니 정말 전광판 수준으로 엄청나게 커져 버렸군요! 😅
+
+스크롤바까지 생겨서 오히려 읽기 불편하셨을 것 같습니다. 딱 보기 좋은 적당한 가독성 크기(기존 대비 약 1.3배, 20px 수준)로 조율하고, 스크롤바 없이 박스가 깔끔하게 딱 들어맞도록 완벽히 정돈했습니다.
+
+황금 비율 폰트 크기 적용 app.py 전체 코드
+아래 코드로 전체 복사해서 덮어씌워 주세요. 이번엔 스크롤바 없이 눈에 쏙 들어오는 명품 크기로 완성됩니다!
+
+Python
 import os
 import re
 import streamlit as st
@@ -200,30 +208,30 @@ with col_nav3:
 
 st.divider()
 
-# 📋 [문제 카드] (components.html을 통해 32px 초대형 글씨 강제 렌더링)
+# 📋 [문제 카드] (20px 황금 비율 폰트 + 높이 가변 반응형)
 st.subheader("📋 [문제] 조항 암기")
 
 q_html = f"""
 <div style="
     background-color: #e8f4f8; 
-    border-left: 10px solid #2980b9; 
-    padding: 25px; 
-    border-radius: 10px; 
+    border-left: 6px solid #2980b9; 
+    padding: 20px; 
+    border-radius: 8px; 
     font-family: sans-serif;
     color: #1c2833;">
-    <div style="font-size: 26px; font-weight: bold; color: #2980b9; margin-bottom: 15px;">[출제 조항]:</div>
-    <div style="font-size: 32px; line-height: 1.9; font-weight: bold; color: #111;">
+    <div style="font-size: 17px; font-weight: bold; color: #2980b9; margin-bottom: 10px;">[출제 조항]:</div>
+    <div style="font-size: 20px; line-height: 1.7; font-weight: 600; color: #111;">
         {q_text.replace('\n', '<br>')}
     </div>
-    <hr style="border: 0.5px solid #aeb6bf; margin: 25px 0;">
-    <div style="font-size: 26px; font-weight: bold; color: #d35400;">
+    <hr style="border: 0.5px solid #aeb6bf; margin: 15px 0;">
+    <div style="font-size: 18px; font-weight: bold; color: #d35400;">
         👉 문제: 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.
     </div>
 </div>
 """
-# 텍스트 길이에 맞춰 박스 높이 자동 조절
-q_box_height = max(280, int(len(q_text) * 0.9) + 180)
-components.html(q_html, height=q_box_height, scrolling=True)
+# 텍스트 길이에 맞춰 높이 자동 조절 (스크롤바 완전 제거)
+q_box_height = max(180, int(len(q_text) * 0.6) + 140)
+components.html(q_html, height=q_box_height, scrolling=False)
 
 # 출제 문제 자동 음성 출력
 speak_js(f"{q_text} 세부 내용을 설명하시오.")
@@ -231,7 +239,7 @@ speak_js(f"{q_text} 세부 내용을 설명하시오.")
 st.divider()
 
 st.subheader("🎤 답안 작성 및 암기 대조")
-user_answer_input = st.text_area("머릿속으로 읊어본 후 핵심 단어/수치를 적어보세요:", key="user_answer_key", height=150)
+user_answer_input = st.text_area("머릿속으로 읊어본 후 핵심 단어/수치를 적어보세요:", key="user_answer_key", height=130)
 
 col_act1, col_act2 = st.columns(2)
 
@@ -279,7 +287,7 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 모범 답안 원문 표시 (components.html을 통해 32px 초대형 글씨 강제 렌더링)
+# 모범 답안 원문 표시 (20px 황금 비율 폰트 + 스크롤바 완전 제거)
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
@@ -287,18 +295,18 @@ if st.session_state.show_answer:
     a_html = f"""
     <div style="
         background-color: #e8f8f5; 
-        border-left: 10px solid #27ae60; 
-        padding: 25px; 
-        border-radius: 10px; 
+        border-left: 6px solid #27ae60; 
+        padding: 20px; 
+        border-radius: 8px; 
         font-family: sans-serif;
         color: #145a32;">
-        <div style="font-size: 32px; line-height: 1.9; font-weight: bold; white-space: pre-wrap; color: #111;">
+        <div style="font-size: 20px; line-height: 1.7; font-weight: 600; white-space: pre-wrap; color: #111;">
             {a_text}
         </div>
     </div>
     """
-    a_box_height = max(250, int(len(a_text) * 0.8) + 150)
-    components.html(a_html, height=a_box_height, scrolling=True)
+    a_box_height = max(160, int(len(a_text) * 0.5) + 120)
+    components.html(a_html, height=a_box_height, scrolling=False)
     
     st.write("")
     if st.button("🔊 모범 답안 음성으로 듣기", use_container_width=True):
