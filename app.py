@@ -158,10 +158,11 @@ def get_full_article_content(collection_name, article_num):
             q_text = article_raw[:split_idx].strip()
             a_text_raw = article_raw[split_idx:].strip()
             
-            a_text = re.sub(r'(?<!\d)(\d+\.)', r'\n\n\1', a_text_raw)
-            a_text = re.sub(r'([①-⑮])', r'\n\n\1', a_text)
+            # 간격이 너무 벌어지지 않도록 \n\n 대신 단일 \n 및 띄어쓰기로 정돈
+            a_text = re.sub(r'(?<!\d)(\d+\.)', r'\n\1', a_text_raw)
+            a_text = re.sub(r'([①-⑮])', r'\n\1', a_text)
             a_text = re.sub(r'([가-하]\.)', r'\n   \1', a_text)
-            a_text = re.sub(r'(\b제\d+절\b)', r'\n\n\1', a_text).strip()
+            a_text = re.sub(r'(\b제\d+절\b)', r'\n\1', a_text).strip()
         else:
             q_text = article_raw
             a_text = "하위 세부 항목(호)이 없는 조항입니다."
@@ -200,7 +201,7 @@ with col_nav3:
 
 st.divider()
 
-# 📋 [문제 카드] (20px 황금 비율 폰트 + 높이 가변 반응형)
+# 📋 [문제 카드]
 st.subheader("📋 [문제] 조항 암기")
 
 q_html = f"""
@@ -212,7 +213,7 @@ q_html = f"""
     font-family: sans-serif;
     color: #1c2833;">
     <div style="font-size: 17px; font-weight: bold; color: #2980b9; margin-bottom: 10px;">[출제 조항]:</div>
-    <div style="font-size: 20px; line-height: 1.7; font-weight: 600; color: #111;">
+    <div style="font-size: 20px; line-height: 1.6; font-weight: 600; color: #111;">
         {q_text.replace('\n', '<br>')}
     </div>
     <hr style="border: 0.5px solid #aeb6bf; margin: 15px 0;">
@@ -221,9 +222,8 @@ q_html = f"""
     </div>
 </div>
 """
-# 텍스트 길이에 맞춰 높이 자동 조절 (스크롤바 완전 제거)
-q_box_height = max(180, int(len(q_text) * 0.6) + 140)
-components.html(q_html, height=q_box_height, scrolling=False)
+q_box_height = max(200, int(len(q_text) * 0.7) + 120)
+components.html(q_html, height=q_box_height, scrolling=True)
 
 # 출제 문제 자동 음성 출력
 speak_js(f"{q_text} 세부 내용을 설명하시오.")
@@ -279,7 +279,7 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 모범 답안 원문 표시 (20px 황금 비율 폰트 + 스크롤바 완전 제거)
+# 모범 답안 원문 표시 (간격 조율 및 높이 확장으로 잘림 방지)
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
@@ -292,13 +292,14 @@ if st.session_state.show_answer:
         border-radius: 8px; 
         font-family: sans-serif;
         color: #145a32;">
-        <div style="font-size: 20px; line-height: 1.7; font-weight: 600; white-space: pre-wrap; color: #111;">
+        <div style="font-size: 20px; line-height: 1.6; font-weight: 600; white-space: pre-wrap; color: #111;">
             {a_text}
         </div>
     </div>
     """
-    a_box_height = max(160, int(len(a_text) * 0.5) + 120)
-    components.html(a_html, height=a_box_height, scrolling=False)
+    # 넉넉한 높이 계산 및 스크롤바 허용
+    a_box_height = max(350, int(len(a_text) * 0.8) + 150)
+    components.html(a_html, height=a_box_height, scrolling=True)
     
     st.write("")
     if st.button("🔊 모범 답안 음성으로 듣기", use_container_width=True):
