@@ -9,7 +9,7 @@ from openai import OpenAI
 st.set_page_config(page_title="산업안전지도사 법령 완전 암기 카드", layout="centered")
 
 st.title("👷‍♂️ 산업안전지도사 법령·지침 완전 암기 시스템")
-st.caption("조(Article) 단위 통째로 잘라내기 | 잘림 0% | 실전 회상 학습")
+st.caption("조(Article) 단위 통째 매핑 | 잘림 0% | 실전 회상 학습")
 
 # 1. API 키 및 클라이언트 설정
 NVIDIA_API_KEY = st.secrets.get("NVIDIA_API_KEY", "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")
@@ -119,22 +119,21 @@ with col_sel2:
     if start_art != st.session_state.target_article:
         st.session_state.target_article = start_art
 
-# 🎯 [제N조] 시작부터 [제N+1조] 시작 직전까지 통째로 슬라이싱하는 정밀 함수
+# 🎯 문장 잘림 현상을 완벽히 차단하는 원문 복원 파서
 def get_exact_article_data(collection_name, article_num):
     subject_db = get_subject_db(collection_name)
     query_str = f"제{article_num}조"
     
-    # 넉넉하게 청크들을 끌어온 후 하나의 긴 텍스트로 합성
-    docs = subject_db.similarity_search(query_str, k=50)
+    # 조항 근처 모든 데이터 청크 연결
+    docs = subject_db.similarity_search(query_str, k=60)
     if not docs:
         return f"제{article_num}조", f"[{selected_display_name}] 제{article_num}조 원문을 찾을 수 없습니다."
 
-    # 검색된 전체 텍스트 병합 (중복 방지 및 연속성 확보)
+    # 검색된 전체 조각들을 순서대로 합침
     full_text = "\n".join([d.page_content for d in docs])
 
-    # 현재 조항 시작 패턴 (예: "제7조(" 또는 "제7조 ")
+    # 정밀 정규식: "제N조(" 또는 "제N조 "
     curr_pattern = re.compile(rf'제\s*{article_num}\s*조(\s*\(|\s+[가-힣])')
-    # 다음 조항 시작 패턴 (예: "제8조(" 또는 "제8조 ")
     next_pattern = re.compile(rf'제\s*{article_num + 1}\s*조(\s*\(|\s+[가-힣])')
 
     curr_match = curr_pattern.search(full_text)
@@ -142,31 +141,34 @@ def get_exact_article_data(collection_name, article_num):
     if curr_match:
         start_pos = curr_match.start()
         
-        # 다음 조항 위치 찾기
+        # 다음 조항 전까지 잘라내기
         next_match = next_pattern.search(full_text, start_pos)
         if next_match:
             end_pos = next_match.start()
             article_text = full_text[start_pos:end_pos].strip()
         else:
-            # 다음 조항 패턴이 없으면 현재 위치부터 끝까지 (또는 2000자까지)
-            article_text = full_text[start_pos:start_pos + 2500].strip()
+            article_text = full_text[start_pos:start_pos + 3000].strip()
 
-        # 조항 제목(첫 줄)과 세부 본문 분리
+        # 조항 제목(첫 번째 문장/줄) 파싱 (자르지 않음!)
         lines = [l.strip() for l in article_text.split('\n') if l.strip()]
+        
+        # 조항 제목 부분
         title_line = lines[0] if lines else f"제{article_num}조"
+        
+        # 조항 본문 및 하위 항목 전체
         body_text = "\n".join(lines[1:]) if len(lines) > 1 else article_text
 
         return title_line, body_text
 
-    # 예외 fallback
+    # 예외 처리
     first_doc = docs[0].page_content.strip()
     lines = first_doc.split('\n')
     return lines[0], "\n".join(lines[1:])
 
-# 조항 제목 및 1호~마지막 호 전체 본문 파싱
+# 조항 제목(풀문장) 및 세부 본문 파싱
 article_title, article_body = get_exact_article_data(target_collection, st.session_state.target_article)
 
-# 이동 및 조작 버튼 (3열)
+# 이동 및 조작 버튼
 col_nav1, col_nav2, col_nav3 = st.columns(3)
 
 with col_nav1:
@@ -192,9 +194,9 @@ with col_nav3:
 
 st.divider()
 
-# 📋 [문제 카드]
+# 📋 [문제 카드] - 자름 없이 조항 원문 제목 전체 표시
 st.subheader("📋 [문제] 법령/지침 조항 암기")
-st.info(f"**[출제 조항]:** {article_title}\n\n**문제:** 위 조항에 따른 세부 내용 및 각 호 준수사항을 원문 그대로 설명하시오.")
+st.info(f"**[출제 조항]:**\n{article_title}\n\n**문제:** 위 조항에 따른 세부 내용 및 각 호 준수사항을 원문 그대로 설명하시오.")
 speak_js(f"{article_title} 세부 내용 및 각 호 준수사항을 설명하시오.")
 
 st.divider()
