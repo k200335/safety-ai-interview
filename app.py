@@ -118,7 +118,7 @@ with col_sel2:
     )
     if start_art != st.session_state.target_article:
         st.session_state.target_article = start_art
-        st.session_state["user_answer_key"] = ""  # 숫자 직접 변경 시 답안 입력창 초기화
+        st.session_state["user_answer_key"] = ""
 
 # 🎯 DB 전수 로드 후 Article 단위 100% 무손실 복원 함수
 def get_full_article_content(collection_name, article_num):
@@ -176,14 +176,14 @@ with col_nav1:
             st.session_state.target_article -= 1
             st.session_state.feedback = ""
             st.session_state.show_answer = False
-            st.session_state["user_answer_key"] = ""  # ✨ 입력창 비우기
+            st.session_state["user_answer_key"] = ""
             st.rerun()
 
 with col_nav2:
     if st.button(f"🔄 제{st.session_state.target_article}조 불러오기", use_container_width=True):
         st.session_state.feedback = ""
         st.session_state.show_answer = False
-        st.session_state["user_answer_key"] = ""  # ✨ 입력창 비우기
+        st.session_state["user_answer_key"] = ""
         st.rerun()
 
 with col_nav3:
@@ -191,7 +191,7 @@ with col_nav3:
         st.session_state.target_article += 1
         st.session_state.feedback = ""
         st.session_state.show_answer = False
-        st.session_state["user_answer_key"] = ""  # ✨ 입력창 비우기
+        st.session_state["user_answer_key"] = ""
         st.rerun()
 
 st.divider()
@@ -199,6 +199,8 @@ st.divider()
 # 📋 [문제 카드]
 st.subheader("📋 [문제] 조항 암기")
 st.info(f"**[출제 조항]:**\n\n{q_text}\n\n---\n**👉 문제:** 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.")
+
+# 자동 음성 읽기
 speak_js(f"{q_text} 세부 내용을 설명하시오.")
 
 st.divider()
@@ -254,14 +256,22 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 모범 답안 원문 표시
+# 모범 답안 원문 및 음성 듣기 버튼
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
     st.success(f"{a_text}")
+    
+    if st.button("🔊 모범 답안 음성으로 듣기", use_container_width=True):
+        clean_ans = a_text.replace("*", "").replace("#", "").replace("-", "").replace("`", "")
+        speak_js(clean_ans)
 
-# AI 채점 결과 표시
+# AI 채점 결과 표시 및 음성 듣기 버튼
 if st.session_state.feedback:
     st.divider()
     st.subheader("📊 AI 채점 결과")
     st.markdown(st.session_state.feedback)
+    
+    if st.button("🔊 채점 결과 음성으로 듣기", use_container_width=True):
+        clean_fb = st.session_state.feedback.replace("*", "").replace("#", "").replace("-", "").replace("`", "")
+        speak_js(clean_fb)
