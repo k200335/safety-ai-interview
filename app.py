@@ -8,23 +8,9 @@ from openai import OpenAI
 
 st.set_page_config(page_title="산업안전지도사 법령 완전 암기 카드", layout="centered")
 
-# 🎨 폰트 크기 2배 확대 및 가독성 최적화 커스텀 CSS 적용
+# 🎨 답안 작성 입력창 크기 보정 CSS
 st.markdown("""
 <style>
-    /* 출제 조항 문제 박스 글씨 크기 2배 확대 */
-    .stInfo {
-        font-size: 1.8rem !important;
-        line-height: 2.0 !important;
-        font-weight: 600 !important;
-    }
-    /* 모범 답안 원문 박스 글씨 크기 2배 확대 */
-    .stSuccess {
-        font-size: 1.8rem !important;
-        line-height: 2.0 !important;
-        font-weight: 600 !important;
-        white-space: pre-wrap !important; /* 줄바꿈 및 들여쓰기 보존 */
-    }
-    /* 답안 작성 입력창 폰트 크기 확대 */
     textarea {
         font-size: 1.4rem !important;
         line-height: 1.8 !important;
@@ -224,9 +210,25 @@ with col_nav3:
 
 st.divider()
 
-# 📋 [문제 카드] (2배 확대 적용)
+# 📋 [문제 카드] (HTML 직접 지정으로 폰트 크기 2.2배 강제 확대)
 st.subheader("📋 [문제] 조항 암기")
-st.info(f"**[출제 조항]:**\n\n{q_text}\n\n---\n**👉 문제:** 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.")
+
+st.markdown(f"""
+<div style="
+    background-color: #e8f4f8; 
+    border-left: 6px solid #2980b9; 
+    padding: 20px; 
+    border-radius: 8px; 
+    font-size: 1.85rem !important; 
+    line-height: 2.1 !important; 
+    font-weight: 600; 
+    color: #1c2833;">
+    <strong>[출제 조항]:</strong><br><br>
+    {q_text.replace('\n', '<br>')}<br><br>
+    <hr style="border: 0.5px solid #aeb6bf;">
+    <strong>👉 문제:</strong> 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.
+</div>
+""", unsafe_allow_html=True)
 
 # 출제 문제 자동 음성 출력
 speak_js(f"{q_text} 세부 내용을 설명하시오.")
@@ -282,12 +284,28 @@ with col_act1:
             except Exception as err:
                 st.error(f"채점 중 오류가 발생했습니다: {err}")
 
-# 모범 답안 원문 표시 (2배 확대 적용)
+# 모범 답안 원문 표시 (HTML 직접 지정으로 폰트 크기 2.2배 강제 확대)
 if st.session_state.show_answer:
     st.divider()
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
-    st.success(f"{a_text}")
     
+    formatted_a_text = a_text.replace('\n', '<br>')
+    st.markdown(f"""
+    <div style="
+        background-color: #e8f8f5; 
+        border-left: 6px solid #27ae60; 
+        padding: 20px; 
+        border-radius: 8px; 
+        font-size: 1.85rem !important; 
+        line-height: 2.1 !important; 
+        font-weight: 600; 
+        color: #145a32;
+        white-space: pre-wrap;">
+        {a_text}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.write("")
     if st.button("🔊 모범 답안 음성으로 듣기", use_container_width=True):
         clean_ans = a_text.replace("*", "").replace("#", "").replace("-", "").replace("`", "")
         speak_js(clean_ans)
