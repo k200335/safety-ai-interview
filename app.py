@@ -118,20 +118,18 @@ with col_sel2:
     )
     if start_art != st.session_state.target_article:
         st.session_state.target_article = start_art
+        st.session_state["user_answer_key"] = ""  # 숫자 직접 변경 시 답안 입력창 초기화
 
 # 🎯 DB 전수 로드 후 Article 단위 100% 무손실 복원 함수
 def get_full_article_content(collection_name, article_num):
     subject_db = get_subject_db(collection_name)
     
-    # 해당 컬렉션 전체 데이터 수집 (청크 조각들 중복 제거 및 연결)
     all_docs = subject_db.get()
     if not all_docs or not all_docs['documents']:
         return f"제{article_num}조", "원문 데이터를 불러올 수 없습니다."
     
-    # 전체 원문 하나로 복원
     raw_full_text = "\n".join(all_docs['documents'])
     
-    # 조항 정규식 (제N조 위치 식별)
     curr_pattern = re.compile(rf'제\s*{article_num}\s*조(\s*\([^)]+\)|\s+[가-힣])?')
     next_pattern = re.compile(rf'제\s*{article_num + 1}\s*조(\s*\([^)]+\)|\s+[가-힣])?')
 
@@ -147,10 +145,8 @@ def get_full_article_content(collection_name, article_num):
         else:
             article_raw = raw_full_text[start_idx:start_idx + 8000].strip()
 
-        # 줄바꿈 기준 정리
         lines = [line.strip() for line in article_raw.split('\n') if line.strip()]
         
-        # 문제(조항 제목)와 답(하위 항목) 분리
         q_lines = []
         a_lines = []
         
@@ -171,7 +167,7 @@ def get_full_article_content(collection_name, article_num):
 # 조항 불러오기
 q_text, a_text = get_full_article_content(target_collection, st.session_state.target_article)
 
-# 이동 버튼
+# 이동 버튼 및 입력창 초기화 처리
 col_nav1, col_nav2, col_nav3 = st.columns(3)
 
 with col_nav1:
@@ -180,12 +176,14 @@ with col_nav1:
             st.session_state.target_article -= 1
             st.session_state.feedback = ""
             st.session_state.show_answer = False
+            st.session_state["user_answer_key"] = ""  # ✨ 입력창 비우기
             st.rerun()
 
 with col_nav2:
     if st.button(f"🔄 제{st.session_state.target_article}조 불러오기", use_container_width=True):
         st.session_state.feedback = ""
         st.session_state.show_answer = False
+        st.session_state["user_answer_key"] = ""  # ✨ 입력창 비우기
         st.rerun()
 
 with col_nav3:
@@ -193,6 +191,7 @@ with col_nav3:
         st.session_state.target_article += 1
         st.session_state.feedback = ""
         st.session_state.show_answer = False
+        st.session_state["user_answer_key"] = ""  # ✨ 입력창 비우기
         st.rerun()
 
 st.divider()
