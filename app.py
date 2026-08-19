@@ -34,20 +34,24 @@ def get_subject_db(collection_name):
         collection_name=collection_name
     )
 
-# 웹 브라우저 TTS 기반 음성 출력 함수
+# 웹 브라우저 TTS 기반 음성 출력 함수 (반복 재생 및 엉킴 방지 보완)
 def speak_js(text_to_speak=""):
     if not text_to_speak:
         return
-    clean_text = text_to_speak.replace('"', "'").replace('\n', ' ').replace('`', '')
+    # 따옴표, 줄바꿈, 특수문자 정제
+    clean_text = text_to_speak.replace('"', "'").replace('\n', ' ').replace('`', '').replace('\\', '')
+    
     js_code = f"""
     <script>
-    function playNaturalVoice(text) {{
+    (function() {{
         if (!('speechSynthesis' in window)) return;
+        
+        // 이전 음성 재생 즉시 강제 종료
         window.speechSynthesis.cancel();
         
         var speakNow = function() {{
             var voices = window.speechSynthesis.getVoices();
-            var msg = new SpeechSynthesisUtterance(text);
+            var msg = new SpeechSynthesisUtterance("{clean_text}");
             msg.lang = 'ko-KR';
             msg.rate = 1.0;
             msg.pitch = 1.0;
@@ -59,16 +63,18 @@ def speak_js(text_to_speak=""):
             if (naturalVoice) {{
                 msg.voice = naturalVoice;
             }}
+            
+            // 소리 출력
             window.speechSynthesis.speak(msg);
         }};
 
+        // 음성 엔진 준비 체크 후 실행
         if (window.speechSynthesis.getVoices().length === 0) {{
             window.speechSynthesis.onvoiceschanged = speakNow;
         }} else {{
-            speakNow();
+            setTimeout(speakNow, 100);
         }}
-    }}
-    playNaturalVoice("{clean_text}");
+    }})();
     </script>
     """
     components.html(js_code, height=0)
@@ -81,7 +87,7 @@ if "feedback" not in st.session_state:
 if "show_answer" not in st.session_state:
     st.session_state.show_answer = False
 
-# 📋 총 16개 전체 과목 매핑 (굴착공사 지침 포함)
+# 📋 총 16개 전체 과목 매핑
 SUBJECT_MAP = {
     "1. 산업안전보건법": "sub_1",
     "2. 산업안전보건법 시행령": "sub_2",
@@ -124,7 +130,7 @@ with col_sel2:
         st.session_state.target_article = start_art
         st.session_state["user_answer_key"] = ""
 
-# 🎯 원문 조항 및 항·호·목 정밀 파서 (가. 나. 다. 들여쓰기/줄바꿈 완벽 적용)
+# 🎯 원문 조항 및 항·호·목 정밀 파서
 def get_full_article_content(collection_name, article_num):
     try:
         subject_db = get_subject_db(collection_name)
@@ -160,7 +166,7 @@ def get_full_article_content(collection_name, article_num):
             q_text = article_raw[:split_idx].strip()
             a_text_raw = article_raw[split_idx:].strip()
             
-            # ✨ 항(①), 호(1.), 목(가.) 단위 세부 줄바꿈 및 들여쓰기 정돈
+            # 항(①), 호(1.), 목(가.) 단위 세부 줄바꿈 및 들여쓰기 정돈
             a_text = re.sub(r'(?<!\d)(\d+\.)', r'\n\n\1', a_text_raw)      # 호 (1., 2.)
             a_text = re.sub(r'([①-⑮])', r'\n\n\1', a_text)                   # 항 (①, ②)
             a_text = re.sub(r'([가-하]\.)', r'\n   \1', a_text)               # 목 (가., 나., 다...)
@@ -208,9 +214,6 @@ st.divider()
 # 📋 [문제 카드]
 st.subheader("📋 [문제] 조항 암기")
 st.info(f"**[출제 조항]:**\n\n{q_text}\n\n---\n**👉 문제:** 위 조항의 세부 내용 및 각 호 항목을 원문 그대로 인출(설명)하시오.")
-
-# 자동 음성 읽기
-speak_js(f"{q_text} 세부 내용을 설명하시오.")
 
 st.divider()
 
@@ -271,7 +274,7 @@ if st.session_state.show_answer:
     st.subheader(f"📖 [모범 답안 원문] 세부 각 호 항목 전체")
     st.success(f"{a_text}")
     
-    if st.button("🔊 모범 답안 음성으로 듣기", use_container_width=True):
+    if st.button("🔊 모범 답안 음성으로 듣기 (무한 다시듣기 가능)", use_container_width=True):
         clean_ans = a_text.replace("*", "").replace("#", "").replace("-", "").replace("`", "")
         speak_js(clean_ans)
 
